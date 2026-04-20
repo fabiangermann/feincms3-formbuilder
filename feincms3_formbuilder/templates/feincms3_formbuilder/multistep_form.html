@@ -1,0 +1,39 @@
+{% load i18n %}
+
+<form method="post">
+  {% csrf_token %}
+
+  <nav aria-label="{% translate 'Form progress' %}">
+    <ol>
+      {% for step in steps %}
+        <li{% if step.is_current %} aria-current="step"{% endif %}>
+          {{ step.number }}. {{ step.name }}
+          {% if step.status == "valid" %} &#10003;{% elif step.status == "invalid" %} &#9888;{% endif %}
+        </li>
+      {% endfor %}
+    </ol>
+  </nav>
+
+  {{ form.non_field_errors }}
+  {% for hidden in form.hidden_fields %}{{ hidden }}{% endfor %}
+
+  {% if step_content %}{{ step_content }}{% endif %}
+
+  <div>
+    {% if not is_first_step %}
+      <button type="submit" name="_action" value="back" formnovalidate>
+        {% translate "Back" %}
+      </button>
+    {% endif %}
+
+    {% if is_last_step %}
+      <button type="submit" name="_action" value="submit">
+        {% translate "Submit" %}
+      </button>
+    {% else %}
+      <button type="submit" name="_action" value="next">
+        {% translate "Next" %}
+      </button>
+    {% endif %}
+  </div>
+</form>

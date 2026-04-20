@@ -1,4 +1,4 @@
-from content_editor.models import create_plugin_base
+from content_editor.models import Region, create_plugin_base
 from django.db import models
 from feincms3_forms import models as forms_models
 
@@ -10,6 +10,40 @@ from feincms3_formbuilder.models import (
 
 
 class ConfiguredForm(AbstractConfiguredForm):
+    slug = models.SlugField(unique=True, blank=True)
+
+    FORMS = [
+        forms_models.FormType(
+            key="simple",
+            label="simple form",
+            regions=[
+                Region(key="form", title="Form fields"),
+                Region(key="success", title="Success message"),
+            ],
+            form_class="django.forms.Form",
+            validate="testapp.validation.validate_configured_form",
+            process="testapp.processing.process_simple_form",
+        ),
+        forms_models.FormType(
+            key="multistep",
+            label="multi-step form",
+            regions=lambda configured_form: (
+                (
+                    [
+                        Region(key=step.region_key, title=step.title)
+                        for step in configured_form.steps.all()
+                    ]
+                    if configured_form.pk
+                    else []
+                )
+                + [Region(key="success", title="Success message")]
+            ),
+            form_class="django.forms.Form",
+            validate="testapp.validation.validate_configured_form",
+            process="testapp.processing.process_multistep_form",
+        ),
+    ]
+
     class Meta:
         verbose_name = "configured form"
         verbose_name_plural = "configured forms"

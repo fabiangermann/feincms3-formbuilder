@@ -16,6 +16,7 @@ INSTALLED_APPS = [
     "content_editor",
     "feincms3",
     "feincms3_forms",
+    "feincms3_formbuilder",
     "testapp",
 ]
 
@@ -40,7 +41,7 @@ TEMPLATES = [
     },
 ]
 
-ROOT_URLCONF = "testapp.urls"
+ROOT_URLCONF = "urls"
 
 MIDDLEWARE = [
     "django.contrib.sessions.middleware.SessionMiddleware",

@@ -1,0 +1,9 @@
+{% load i18n %}
+
+<form method="post" enctype="multipart/form-data">
+  {% csrf_token %}
+  {{ form.non_field_errors }}
+  {% for hidden in form.hidden_fields %}{{ hidden }}{% endfor %}
+  {% if form_content %}{{ form_content }}{% endif %}
+  <button type="submit">{% translate "Submit" %}</button>
+</form>
