@@ -60,3 +60,11 @@ class FormSubmission(AbstractFormSubmission):
 
     def get_formatted_data(self):
         return super().get_formatted_data(field_model=SimpleField)
+
+
+class RichText(ConfiguredFormPlugin):
+    text = models.TextField(blank=True)
+
+    class Meta:
+        verbose_name = "rich text"
+        verbose_name_plural = "rich texts"

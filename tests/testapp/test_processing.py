@@ -2,7 +2,11 @@ from django.contrib.contenttypes.models import ContentType
 from django.core import signing
 from django.test import RequestFactory, TestCase
 
-from feincms3_formbuilder.processing import create_submission, resolve_ref
+from feincms3_formbuilder.processing import (
+    create_submission,
+    render_success_region,
+    resolve_ref,
+)
 
 from testapp.models import ConfiguredForm, FormSubmission
 
@@ -85,3 +89,26 @@ class CreateSubmissionTest(TestCase):
         self.assertEqual(submission.related_content_type, ct)
         self.assertEqual(submission.related_object_id, str(self.form.pk))
         self.assertNotIn("_ref", submission.data)
+
+
+class RenderSuccessRegionTest(TestCase):
+    def setUp(self):
+        self.form = ConfiguredForm.objects.create(
+            name="Test", form_type="simple"
+        )
+
+    def test_renders_success_content(self):
+        from testapp.models import RichText
+
+        RichText.objects.create(
+            parent=self.form,
+            region="success",
+            ordering=10,
+            text="<p>Thank you!</p>",
+        )
+        from testapp.renderer import renderer
+
+        request = RequestFactory().get("/")
+        response = render_success_region(request, self.form, renderer=renderer)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"Thank you!", response.content)
