@@ -1,0 +1,24 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "feincms3-formbuilder"
+version = "0.0.1"
+description = "Form builder building blocks for feincms3-forms"
+requires-python = ">=3.10"
+license = "BSD-3-Clause"
+dependencies = [
+    "feincms3-forms>=0.6",
+    "feincms3",
+    "django-content-editor",
+    "django-admin-ordering",
+]
+
+[project.optional-dependencies]
+tests = [
+    "coverage",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["feincms3_formbuilder"]
