@@ -12,6 +12,7 @@ INSTALLED_APPS = [
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",
+    "admin_ordering",
     "content_editor",
     "feincms3",
     "feincms3_forms",
