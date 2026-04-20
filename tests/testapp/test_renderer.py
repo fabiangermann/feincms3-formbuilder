@@ -2,7 +2,7 @@ from django.test import TestCase
 
 from feincms3_formbuilder.renderer import create_form_renderer
 
-from testapp.models import SimpleField
+from testapp.models import RichText, SimpleField
 
 
 class CreateFormRendererTest(TestCase):
@@ -15,13 +15,10 @@ class CreateFormRendererTest(TestCase):
         def dummy_renderer(plugin, context):
             return "dummy"
 
-        class DummyPlugin:
-            pass
-
         renderer = create_form_renderer(
             SimpleField,
-            extra_plugins={DummyPlugin: dummy_renderer},
+            extra_plugins={RichText: dummy_renderer},
         )
         plugins = renderer.plugins()
         self.assertIn(SimpleField, plugins)
-        self.assertIn(DummyPlugin, plugins)
+        self.assertIn(RichText, plugins)
