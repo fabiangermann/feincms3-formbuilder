@@ -1,9 +1,11 @@
 import json
 
+from content_editor.contents import contents_for_item
+from django import forms
 from django.test import RequestFactory, TestCase
 from django.urls import reverse
 
-from feincms3_formbuilder.views import _ref_initial
+from feincms3_formbuilder.views import _ref_initial, compute_step_statuses
 
 from testapp.models import (
     ConfiguredForm,
@@ -13,6 +15,7 @@ from testapp.models import (
     RichText,
     Text,
 )
+from testapp.renderer import renderer
 
 
 class SimpleFormViewTest(TestCase):
@@ -156,6 +159,18 @@ class MultistepFormViewTest(TestCase):
         response = self.client.get(url)
         self.assertEqual(response.status_code, 200)
 
+    def test_step_clamped_when_steps_removed(self):
+        """Self-healing: session step gets clamped when steps are deleted between requests."""
+        self._post_step({"first_name": "John"})
+
+        session_key = f"multistep_form_{self.form.pk}"
+        self.assertEqual(json.loads(self.client.session[session_key])["step"], 1)
+
+        self.step2.delete()
+
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+
 
 class FormViewRouterTest(TestCase):
     def test_routes_simple(self):
@@ -226,3 +241,87 @@ class RefInitialTest(TestCase):
         response = self.client.get(url + "?ref=any-token")
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Field")
+
+
+class SingleStepFormViewTest(TestCase):
+    """Multistep form with exactly one step: the only step is both first and last."""
+
+    def setUp(self):
+        self.form = ConfiguredForm.objects.create(
+            name="Single", slug="single", form_type="multistep",
+        )
+        self.step = FormStep.objects.create(
+            configured_form=self.form, title="Only",
+            identifier="only", ordering=10,
+        )
+        Text.objects.create(
+            parent=self.form, region=self.step.region_key, ordering=10,
+            name="name", label="Name", is_required=True,
+        )
+        RichText.objects.create(
+            parent=self.form, region="success", ordering=10, text="<p>Done!</p>",
+        )
+        self.url = reverse("forms:form", kwargs={"slug": "single"})
+
+    def test_get_renders_only_step(self):
+        response = self.client.get(self.url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Name")
+
+    def test_submit_completes_immediately(self):
+        response = self.client.post(self.url, {"name": "Test", "_action": "submit"})
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Done!")
+        self.assertEqual(FormSubmission.objects.count(), 1)
+
+
+class ComputeStepStatusesTest(TestCase):
+    """Direct coverage of the three status branches in compute_step_statuses."""
+
+    def setUp(self):
+        self.form = ConfiguredForm.objects.create(
+            name="StatusForm", slug="status-form", form_type="multistep",
+        )
+        self.step1 = FormStep.objects.create(
+            configured_form=self.form, title="Personal",
+            identifier="personal", ordering=10,
+        )
+        self.step2 = FormStep.objects.create(
+            configured_form=self.form, title="Contact",
+            identifier="contact", ordering=20,
+        )
+        Text.objects.create(
+            parent=self.form, region=self.step1.region_key, ordering=10,
+            name="first_name", label="First Name", is_required=True,
+        )
+        Email.objects.create(
+            parent=self.form, region=self.step2.region_key, ordering=10,
+            name="email", label="Email", is_required=True,
+        )
+        RichText.objects.create(
+            parent=self.form, region="success", ordering=10, text="<p>OK</p>",
+        )
+        self.contents = contents_for_item(self.form, plugins=renderer.plugins())
+        self.step_regions = [r for r in self.form.regions if r.key != "success"]
+
+    def test_all_empty_when_no_data(self):
+        statuses = compute_step_statuses(
+            self.contents, self.step_regions, {}, 0, form_class=forms.Form,
+        )
+        for s in statuses:
+            self.assertEqual(s["status"], "empty")
+
+    def test_valid_for_step_with_complete_data(self):
+        statuses = compute_step_statuses(
+            self.contents, self.step_regions,
+            {"first_name": "John"}, 0, form_class=forms.Form,
+        )
+        self.assertEqual(statuses[0]["status"], "valid")
+        self.assertEqual(statuses[1]["status"], "empty")
+
+    def test_invalid_for_step_with_bad_data(self):
+        statuses = compute_step_statuses(
+            self.contents, self.step_regions,
+            {"email": "not-an-email"}, 1, form_class=forms.Form,
+        )
+        self.assertEqual(statuses[1]["status"], "invalid")
