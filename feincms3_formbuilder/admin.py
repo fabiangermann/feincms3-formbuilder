@@ -1,6 +1,9 @@
 from admin_ordering.admin import OrderableAdmin
 from content_editor.admin import deny_regions
 from django.contrib import admin
+from django.urls import reverse
+from django.utils.html import format_html
+from django.utils.translation import gettext_lazy as _
 from feincms3_forms import admin as forms_admin
 
 
@@ -45,3 +48,77 @@ def simple_field_inlines(model):
         )
         for proxy_model, icon in type_configs
     ]
+
+
+class BaseFormSubmissionAdmin(admin.ModelAdmin):
+    """
+    Base ModelAdmin for concrete FormSubmission models.  Provides readonly
+    fieldsets, ``formatted_data_display`` (calls ``get_formatted_data()``
+    on the instance), ``related_object_link`` (resolves the generic FK to
+    an admin change-page link), and disables add permission.
+
+    Subclass to add project-specific actions, list filters, etc.
+    """
+
+    list_display = [
+        "configured_form",
+        "submitted_at",
+        "ip_address",
+        "related_object_link",
+    ]
+    list_filter = ["configured_form", "submitted_at"]
+    readonly_fields = [
+        "configured_form",
+        "submitted_at",
+        "data",
+        "ip_address",
+        "user_agent",
+        "formatted_data_display",
+        "related_object_link",
+        "related_content_type",
+        "related_object_id",
+    ]
+    fieldsets = [
+        (
+            None,
+            {
+                "fields": (
+                    "configured_form",
+                    "submitted_at",
+                    "formatted_data_display",
+                    "data",
+                    "ip_address",
+                    "user_agent",
+                ),
+            },
+        ),
+        (
+            _("Related object"),
+            {
+                "fields": (
+                    "related_object_link",
+                    "related_content_type",
+                    "related_object_id",
+                ),
+            },
+        ),
+    ]
+    date_hierarchy = "submitted_at"
+
+    @admin.display(description=_("formatted data"))
+    def formatted_data_display(self, obj):
+        return obj.get_formatted_data()
+
+    @admin.display(description=_("related object"))
+    def related_object_link(self, obj):
+        if not obj.related_content_type_id or not obj.related_object_id:
+            return "-"
+        url = reverse(
+            f"admin:{obj.related_content_type.app_label}_{obj.related_content_type.model}_change",
+            args=[obj.related_object_id],
+        )
+        label = f"{obj.related_content_type.name} | {obj.related_object}"
+        return format_html('<a href="{}">{}</a>', url, label)
+
+    def has_add_permission(self, request):
+        return False

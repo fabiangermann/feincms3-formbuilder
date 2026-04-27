@@ -1,8 +1,20 @@
+from django.contrib.admin.sites import AdminSite
+from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 
-from feincms3_formbuilder.admin import FormStepInline, simple_field_inlines
+from feincms3_formbuilder.admin import (
+    BaseFormSubmissionAdmin,
+    FormStepInline,
+    simple_field_inlines,
+)
 
-from testapp.models import FormStep, SimpleField
+from testapp.models import (
+    ConfiguredForm,
+    FormStep,
+    FormSubmission,
+    SimpleField,
+    Text,
+)
 
 
 class SimpleFieldInlinesTest(TestCase):
@@ -29,3 +41,46 @@ class FormStepInlineTest(TestCase):
         self.assertIs(inline_cls.model, FormStep)
         self.assertEqual(inline_cls.fields, FormStepInline.fields)
         self.assertNotEqual(inline_cls, FormStepInline)
+
+
+class BaseFormSubmissionAdminTest(TestCase):
+    def setUp(self):
+        self.form = ConfiguredForm.objects.create(
+            name="Form", slug="form", form_type="simple",
+        )
+        Text.objects.create(
+            parent=self.form, region="form", ordering=10,
+            name="name", label="Name", is_required=True,
+        )
+        self.admin = BaseFormSubmissionAdmin(FormSubmission, AdminSite())
+
+    def test_formatted_data_display_delegates_to_instance(self):
+        submission = FormSubmission.objects.create(
+            configured_form=self.form,
+            data={"name": "Alice"},
+        )
+        self.assertEqual(
+            self.admin.formatted_data_display(submission),
+            submission.get_formatted_data(),
+        )
+
+    def test_related_object_link_returns_dash_when_unset(self):
+        submission = FormSubmission.objects.create(
+            configured_form=self.form, data={},
+        )
+        self.assertEqual(self.admin.related_object_link(submission), "-")
+
+    def test_related_object_link_returns_anchor_when_set(self):
+        ct = ContentType.objects.get_for_model(self.form)
+        submission = FormSubmission.objects.create(
+            configured_form=self.form,
+            data={},
+            related_content_type=ct,
+            related_object_id=str(self.form.pk),
+        )
+        link = self.admin.related_object_link(submission)
+        self.assertIn("<a href=", link)
+        self.assertIn(str(self.form.pk), link)
+
+    def test_has_add_permission_is_false(self):
+        self.assertFalse(self.admin.has_add_permission(request=None))

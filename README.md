@@ -288,6 +288,28 @@ constraint so that field plugins cannot be placed in the success region.
 concrete `FormStep` model with `FormStepInline.for_model(FormStep)`, or by
 subclassing and setting `model` explicitly.
 
+For the submission admin, subclass `BaseFormSubmissionAdmin`:
+
+```python
+from feincms3_formbuilder.admin import BaseFormSubmissionAdmin
+from myapp.models import FormSubmission
+
+
+@admin.register(FormSubmission)
+class FormSubmissionAdmin(BaseFormSubmissionAdmin):
+    pass  # add project-specific actions, list_filter etc. here
+```
+
+`BaseFormSubmissionAdmin` ships:
+
+- `list_display`, `list_filter`, `date_hierarchy`, and a two-section `fieldsets`
+  (main data + related object) covering every field on `AbstractFormSubmission`
+  plus the consumer's required `configured_form` FK.
+- `formatted_data_display` — calls `obj.get_formatted_data()`.
+- `related_object_link` — resolves the generic FK (`related_content_type` /
+  `related_object_id`) to an admin change-page link, or `-` when unset.
+- `has_add_permission()` returning `False` (submissions are user-generated).
+
 ---
 
 ## Views and URLs
