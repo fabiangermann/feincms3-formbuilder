@@ -14,6 +14,19 @@ def _render_region_content(contents, region_key, context, *, renderer):
     return mark_safe("".join(renderer.handle(contents[region_key], context)))
 
 
+def _ref_initial(request):
+    """Return ``{"_ref": <token>}`` if ``?ref=`` is present, else ``{}``.
+
+    Pairs with the ``make_submission_ref`` template filter and the
+    ``resolve_ref`` processing helper to link a submission back to a related
+    object.  If the consuming form_class has no ``_ref`` field the value is
+    silently ignored by Django's form initial handling.
+    """
+    if ref := request.GET.get("ref"):
+        return {"_ref": ref}
+    return {}
+
+
 def simple_form_view(request, configured_form, *, renderer, form_class=None):
     """Handle simple form display and submission."""
     if form_class is None:
@@ -34,7 +47,7 @@ def simple_form_view(request, configured_form, *, renderer, form_class=None):
         form = create_form(
             contents["form"],
             form_class=form_class,
-            form_kwargs={},
+            form_kwargs={"initial": _ref_initial(request)},
         )
 
     context = Context({"request": request, "form": form})
@@ -128,7 +141,7 @@ def _render_step(
     form = create_form(
         contents[current_region.key],
         form_class=form_class,
-        form_kwargs={"initial": accumulated_data},
+        form_kwargs={"initial": {**accumulated_data, **_ref_initial(request)}},
     )
 
     steps = compute_step_statuses(

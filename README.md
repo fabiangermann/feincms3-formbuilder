@@ -353,3 +353,18 @@ query submissions for a specific object:
 ```python
 FormSubmission.objects.for_related_object(event)
 ```
+
+The view layer also reads `?ref=` from the GET query string and pre-fills it
+into the form's `initial` data under the key `_ref`.  This lets you link to a
+form with `?ref={{ obj|make_submission_ref }}` and have the token survive
+through the form submission, provided your form class declares a hidden
+`_ref` field:
+
+```python
+from django import forms
+
+class BaseForm(forms.Form):
+    _ref = forms.CharField(required=False, widget=forms.HiddenInput)
+```
+
+If your form class has no `_ref` field the initial value is silently ignored.

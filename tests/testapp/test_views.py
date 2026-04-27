@@ -1,7 +1,9 @@
 import json
 
-from django.test import TestCase
+from django.test import RequestFactory, TestCase
 from django.urls import reverse
+
+from feincms3_formbuilder.views import _ref_initial
 
 from testapp.models import (
     ConfiguredForm,
@@ -188,5 +190,39 @@ class FormViewRouterTest(TestCase):
         )
         url = reverse("forms:form", kwargs={"slug": "multi"})
         response = self.client.get(url)
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Field")
+
+
+class RefInitialTest(TestCase):
+    def setUp(self):
+        self.factory = RequestFactory()
+
+    def test_no_ref_returns_empty(self):
+        request = self.factory.get("/")
+        self.assertEqual(_ref_initial(request), {})
+
+    def test_empty_ref_returns_empty(self):
+        request = self.factory.get("/?ref=")
+        self.assertEqual(_ref_initial(request), {})
+
+    def test_ref_returned_under_underscore_key(self):
+        request = self.factory.get("/?ref=signed-token")
+        self.assertEqual(_ref_initial(request), {"_ref": "signed-token"})
+
+    def test_view_with_ref_query_does_not_break(self):
+        """Default form_class has no _ref field; the view must still render."""
+        form = ConfiguredForm.objects.create(
+            name="WithRef", slug="with-ref", form_type="simple"
+        )
+        Text.objects.create(
+            parent=form, region="form", ordering=10,
+            name="field", label="Field", is_required=True,
+        )
+        RichText.objects.create(
+            parent=form, region="success", ordering=10, text="<p>OK</p>",
+        )
+        url = reverse("forms:form", kwargs={"slug": "with-ref"})
+        response = self.client.get(url + "?ref=any-token")
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Field")
