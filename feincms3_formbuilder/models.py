@@ -46,7 +46,7 @@ class StepSlugField(models.CharField):
 
 class AbstractFormStep(OrderableModel):
     title = models.CharField(_("title"), max_length=200)
-    identifier = StepSlugField(_("identifier"), blank=True)
+    identifier = StepSlugField(_("identifier"), max_length=100, blank=True)
     created_at = models.DateTimeField(_("created at"), auto_now_add=True)
     updated_at = models.DateTimeField(_("updated at"), auto_now=True)
 

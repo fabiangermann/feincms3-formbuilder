@@ -217,7 +217,7 @@ class Migration(migrations.Migration):
                 ('id', models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
                 ('ordering', models.PositiveIntegerField(db_index=True, default=0, verbose_name='ordering')),
                 ('title', models.CharField(max_length=200, verbose_name='title')),
-                ('identifier', models.CharField(blank=True, verbose_name='identifier')),
+                ('identifier', models.CharField(blank=True, max_length=100, verbose_name='identifier')),
                 ('configured_form', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='steps', to='testapp.configuredform')),
             ],
             options={
