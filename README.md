@@ -223,26 +223,40 @@ def validate_configured_form(configured_form):
 
 ## Renderer
 
-Call `create_form_renderer()` with your `SimpleField` model.  Pass additional
-plugins via `extra_plugins`:
+Call `create_form_renderer()` with your field-producing plugin models as
+positional arguments and any non-field plugins via `extra_plugins`:
 
 ```python
 # myapp/renderer.py
 from feincms3.renderer import template_renderer
 from feincms3_formbuilder.renderer import create_form_renderer
-from myapp.models import RichText, SimpleField
+from myapp.models import NewsletterField, RichText, SimpleField
 
 renderer = create_form_renderer(
     SimpleField,
+    NewsletterField,
     extra_plugins={
         RichText: template_renderer("myapp/richtext.html"),
     },
 )
 ```
 
-`create_form_renderer` returns a `RegionRenderer` where every model in
-`field_models` is wired to the built-in `render_form_field` handler, which
-renders each field using `feincms3_formbuilder/form_field.html`.
+`create_form_renderer(*field_models, extra_plugins=None)` returns a
+`RegionRenderer` where:
+
+- Every model in `field_models` is wired to the built-in `render_form_field`
+  handler, which renders each field using
+  `feincms3_formbuilder/form_field.html`.  Pass any number of plugin models
+  here — they all share that same wrapper template.
+- Every model in `extra_plugins` is registered with the renderer callable you
+  provide.  Use this for plugins that are not form fields (e.g. a `RichText`
+  block) **or** for field plugins that need different outer markup than
+  `form_field.html` — in that case write a custom renderer that calls
+  `form.get_form_fields(plugin)` itself.
+
+If you want every field to render through your own template, override
+`feincms3_formbuilder/form_field.html` in your project's templates directory
+rather than registering each model individually.
 
 ---
 
