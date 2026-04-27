@@ -284,9 +284,9 @@ class ConfiguredFormAdmin(admin.ModelAdmin):
 each pre-configured with a Material Icons button and a `deny_regions({"success"})`
 constraint so that field plugins cannot be placed in the success region.
 
-`FormStepInline` is an `OrderableAdmin` `TabularInline` ready to use; supply
-the concrete `FormStep` model via `for_model()` or by setting `model` on a
-subclass.
+`FormStepInline` is an `OrderableAdmin` `TabularInline`.  Bind it to your
+concrete `FormStep` model with `FormStepInline.for_model(FormStep)`, or by
+subclassing and setting `model` explicitly.
 
 ---
 

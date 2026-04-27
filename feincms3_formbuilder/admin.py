@@ -8,6 +8,15 @@ class FormStepInline(OrderableAdmin, admin.TabularInline):
     extra = 0
     fields = ["title", "identifier", "ordering"]
 
+    @classmethod
+    def for_model(cls, model):
+        """Return a subclass of this inline bound to the given concrete FormStep model."""
+        return type(
+            f"{cls.__name__}For{model.__name__}",
+            (cls,),
+            {"model": model},
+        )
+
 
 def simple_field_inlines(model):
     """
