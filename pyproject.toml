@@ -1,24 +1,87 @@
 [build-system]
-requires = ["hatchling"]
 build-backend = "hatchling.build"
+requires = [
+  "hatchling",
+]
 
 [project]
 name = "feincms3-formbuilder"
-version = "0.0.1"
 description = "Form builder building blocks for feincms3-forms"
+readme = "README.md"
+license = { text = "BSD-3-Clause" }
+authors = [
+  { name = "Feinheit AG", email = "dev@feinheit.ch" },
+]
 requires-python = ">=3.10"
-license = "BSD-3-Clause"
+classifiers = [
+  "Environment :: Web Environment",
+  "Framework :: Django",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: BSD License",
+  "Operating System :: OS Independent",
+  "Programming Language :: Python",
+  "Programming Language :: Python :: 3 :: Only",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Internet :: WWW/HTTP :: Dynamic Content",
+  "Topic :: Software Development",
+  "Topic :: Software Development :: Libraries :: Application Frameworks",
+]
+dynamic = [
+  "version",
+]
 dependencies = [
-    "feincms3-forms>=0.6",
-    "feincms3",
-    "django-content-editor",
-    "django-admin-ordering",
+  "django-admin-ordering",
+  "django-content-editor",
+  "feincms3",
+  "feincms3-forms>=0.6",
 ]
-
-[project.optional-dependencies]
-tests = [
-    "coverage",
+optional-dependencies.tests = [
+  "coverage",
 ]
+urls.Homepage = "https://github.com/feincms/feincms3-formbuilder/"
 
-[tool.hatch.build.targets.wheel]
-packages = ["feincms3_formbuilder"]
+[tool.hatch]
+build.include = [ "feincms3_formbuilder/" ]
+version.path = "feincms3_formbuilder/__init__.py"
+
+[tool.ruff]
+fix = true
+show-fixes = true
+target-version = "py310"
+
+lint.extend-ignore = [
+  "B905",
+  "E501",
+]
+lint.extend-select = [
+  "B",
+  "C4",
+  "C90",
+  "DJ",
+  "E",
+  "F",
+  "FBT",
+  "I",
+  "INT",
+  "N",
+  "PGH",
+  "PIE",
+  "PLC",
+  "PLE",
+  "PLW",
+  "RUF100",
+  "SIM",
+  "UP",
+  "W",
+  "YTT",
+]
+lint.isort.combine-as-imports = true
+lint.isort.lines-after-imports = 2
+lint.mccabe.max-complexity = 15
+lint.per-file-ignores."*/migrat*/*" = [
+  "N806",
+  "N999",
+]
