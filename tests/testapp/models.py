@@ -44,9 +44,8 @@ class ConfiguredForm(AbstractConfiguredForm):
         ),
     ]
 
-    class Meta:
-        verbose_name = "configured form"
-        verbose_name_plural = "configured forms"
+    class Meta(AbstractConfiguredForm.Meta):
+        pass
 
 
 class FormStep(AbstractFormStep):

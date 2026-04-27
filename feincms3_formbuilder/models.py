@@ -47,6 +47,8 @@ class StepSlugField(models.CharField):
 class AbstractFormStep(OrderableModel):
     title = models.CharField(_("title"), max_length=200)
     identifier = StepSlugField(_("identifier"), blank=True)
+    created_at = models.DateTimeField(_("created at"), auto_now_add=True)
+    updated_at = models.DateTimeField(_("updated at"), auto_now=True)
 
     class Meta(OrderableModel.Meta):
         abstract = True
@@ -88,6 +90,9 @@ def _not_implemented_process(request, form, **kwargs):
 
 
 class AbstractConfiguredForm(forms_models.ConfiguredForm):
+    created_at = models.DateTimeField(_("created at"), auto_now_add=True)
+    updated_at = models.DateTimeField(_("updated at"), auto_now=True)
+
     FORMS = [
         forms_models.FormType(
             key="simple",
@@ -124,7 +129,7 @@ class AbstractConfiguredForm(forms_models.ConfiguredForm):
         abstract = True
         verbose_name = _("configured form")
         verbose_name_plural = _("configured forms")
-        ordering = ["name"]
+        ordering = ["-created_at"]
 
     def __str__(self):
         return self.name

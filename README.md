@@ -130,6 +130,10 @@ class FormSubmission(AbstractFormSubmission):
 `user_agent`, and optional `related_content_type` / `related_object_id`
 generic FK fields (used for the submission-ref feature described below).
 
+`AbstractConfiguredForm` and `AbstractFormStep` both ship with `created_at`
+(`auto_now_add=True`) and `updated_at` (`auto_now=True`).  The default
+`ordering` on `AbstractConfiguredForm` is `["-created_at"]`.
+
 ### SimpleField and proxy models
 
 Create the plugin base, a `SimpleField` model, and proxy models for each
