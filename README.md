@@ -314,20 +314,22 @@ class FormSubmissionAdmin(BaseFormSubmissionAdmin):
 
 ## Views and URLs
 
-Write a thin wrapper that looks up the `ConfiguredForm` and delegates to
-`form_view_router`:
+Write a thin wrapper that looks up the `ConfiguredForm` and dispatches to
+`simple_form_view` or `multistep_form_view`:
 
 ```python
 # myapp/views.py
 from django.shortcuts import get_object_or_404
-from feincms3_formbuilder.views import form_view_router
+from feincms3_formbuilder.views import multistep_form_view, simple_form_view
 from myapp.models import ConfiguredForm
 from myapp.renderer import renderer
 
 
 def form_view(request, slug):
     configured_form = get_object_or_404(ConfiguredForm, slug=slug)
-    return form_view_router(request, configured_form, renderer=renderer)
+    if configured_form.form_type == "multistep":
+        return multistep_form_view(request, configured_form, renderer=renderer)
+    return simple_form_view(request, configured_form, renderer=renderer)
 ```
 
 ```python
@@ -342,9 +344,16 @@ urlpatterns = [
 ]
 ```
 
-`form_view_router` inspects `configured_form.form_type` and dispatches to
-`simple_form_view` or `multistep_form_view`.  Both are importable directly
-from `feincms3_formbuilder.views` if you need to call them without the router.
+The dispatch lives in your project because your project owns the `FORMS`
+configuration that defines which form types exist. The `"multistep"` string
+above must match the `key=` you set on the corresponding `FormType` in
+`FORMS`.
+
+`multistep_form_view` walks all regions whose key starts with
+`STEP_REGION_PREFIX` (`"step_"`) — this matches `AbstractFormStep.region_key`.
+Pass `get_step_regions=` (a callable `(configured_form) -> list[Region]`) to
+override the selection, e.g. to mix step regions with project-specific
+content regions.
 
 ---
 
