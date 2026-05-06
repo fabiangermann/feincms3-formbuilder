@@ -2,10 +2,16 @@ import json
 
 from content_editor.contents import contents_for_item
 from django import forms
+from django.contrib.sessions.backends.db import SessionStore
 from django.test import RequestFactory, TestCase
 from django.urls import reverse
 
-from feincms3_formbuilder.views import _default_get_step_regions, _ref_initial, compute_step_statuses
+from feincms3_formbuilder.views import (
+    _default_get_step_regions,
+    _ref_initial,
+    compute_step_statuses,
+    multistep_form_view,
+)
 
 from testapp.models import (
     ConfiguredForm,
@@ -349,3 +355,58 @@ class DefaultGetStepRegionsTest(TestCase):
         form = self._form_with_regions(["step_b", "step_a", "step_c"])
         result = _default_get_step_regions(form)
         self.assertEqual([r.key for r in result], ["step_b", "step_a", "step_c"])
+
+
+class MultistepFormViewCustomStepRegionsTest(TestCase):
+    def setUp(self):
+        self.form = ConfiguredForm.objects.create(
+            name="Custom",
+            slug="custom-walker",
+            form_type="multistep",
+        )
+        self.step1 = FormStep.objects.create(
+            configured_form=self.form,
+            title="One",
+            identifier="one",
+            ordering=10,
+        )
+        self.step2 = FormStep.objects.create(
+            configured_form=self.form,
+            title="Two",
+            identifier="two",
+            ordering=20,
+        )
+        Text.objects.create(
+            parent=self.form,
+            region=self.step1.region_key,
+            ordering=10,
+            name="a",
+            label="A",
+            is_required=True,
+        )
+        Text.objects.create(
+            parent=self.form,
+            region=self.step2.region_key,
+            ordering=10,
+            name="b",
+            label="B",
+            is_required=True,
+        )
+
+    def test_custom_callable_controls_walked_regions(self):
+        def only_second(cf):
+            return [r for r in cf.regions if r.key == "step_two"]
+
+        request = RequestFactory().get(
+            f"/forms/{self.form.slug}/", SERVER_NAME="testserver",
+        )
+        request.session = SessionStore()
+
+        response = multistep_form_view(
+            request, self.form,
+            renderer=renderer,
+            get_step_regions=only_second,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'name="b"')
+        self.assertNotContains(response, 'name="a"')

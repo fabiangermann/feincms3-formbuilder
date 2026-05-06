@@ -178,13 +178,17 @@ def _render_step(
 
 def multistep_form_view(
     request, configured_form, *, renderer,
-    form_class=None, validation_form_class=forms.Form,
+    form_class=None,
+    validation_form_class=forms.Form,
+    get_step_regions=None,
 ):
     """Handle multi-step form display and submission."""
     if form_class is None:
         form_class = configured_form.type.form_class
+    if get_step_regions is None:
+        get_step_regions = _default_get_step_regions
     contents = contents_for_item(configured_form, plugins=renderer.plugins())
-    step_regions = _default_get_step_regions(configured_form)
+    step_regions = get_step_regions(configured_form)
 
     if (total_steps := len(step_regions)) == 0:
         return render(
