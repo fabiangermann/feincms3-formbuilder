@@ -297,18 +297,3 @@ def multistep_form_view(
         renderer=renderer, form_class=form_class,
         validation_form_class=validation_form_class,
     )
-
-
-def form_view_router(
-    request, configured_form, *, renderer,
-    form_class=None, validation_form_class=forms.Form,
-):
-    """Route to simple or multistep view based on form type."""
-    if configured_form.form_type == "multistep":
-        return multistep_form_view(
-            request, configured_form, renderer=renderer,
-            form_class=form_class, validation_form_class=validation_form_class,
-        )
-    return simple_form_view(
-        request, configured_form, renderer=renderer, form_class=form_class,
-    )
