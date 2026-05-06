@@ -8,6 +8,8 @@ from django.template import Context
 from django.utils.safestring import mark_safe
 from feincms3_forms.renderer import create_form
 
+from feincms3_formbuilder.models import STEP_REGION_PREFIX
+
 
 def _render_region_content(contents, region_key, context, *, renderer):
     """Render non-field plugins from a region."""
@@ -118,9 +120,12 @@ def compute_step_statuses(
     return steps
 
 
-def _get_step_regions(configured_form):
-    """Return step regions (all regions except 'success')."""
-    return [r for r in configured_form.regions if r.key != "success"]
+def _default_get_step_regions(configured_form):
+    """Return regions whose key starts with STEP_REGION_PREFIX."""
+    return [
+        r for r in configured_form.regions
+        if r.key.startswith(STEP_REGION_PREFIX)
+    ]
 
 
 def _merge_post_data(accumulated_data, form):
@@ -179,7 +184,7 @@ def multistep_form_view(
     if form_class is None:
         form_class = configured_form.type.form_class
     contents = contents_for_item(configured_form, plugins=renderer.plugins())
-    step_regions = _get_step_regions(configured_form)
+    step_regions = _default_get_step_regions(configured_form)
 
     if (total_steps := len(step_regions)) == 0:
         return render(

@@ -5,7 +5,7 @@ from django import forms
 from django.test import RequestFactory, TestCase
 from django.urls import reverse
 
-from feincms3_formbuilder.views import _ref_initial, compute_step_statuses
+from feincms3_formbuilder.views import _default_get_step_regions, _ref_initial, compute_step_statuses
 
 from testapp.models import (
     ConfiguredForm,
@@ -325,3 +325,27 @@ class ComputeStepStatusesTest(TestCase):
             {"email": "not-an-email"}, 1, form_class=forms.Form,
         )
         self.assertEqual(statuses[1]["status"], "invalid")
+
+
+class DefaultGetStepRegionsTest(TestCase):
+    def _form_with_regions(self, region_keys):
+        form = ConfiguredForm(name="X", form_type="multistep")
+        # Stub `regions` so we can test the selector in isolation,
+        # without coupling to FormStep/FormType wiring.
+        form.regions = [type("R", (), {"key": k, "title": k})() for k in region_keys]
+        return form
+
+    def test_picks_step_prefixed_regions(self):
+        form = self._form_with_regions(["step_one", "step_two", "success"])
+        result = _default_get_step_regions(form)
+        self.assertEqual([r.key for r in result], ["step_one", "step_two"])
+
+    def test_ignores_arbitrary_non_step_regions(self):
+        form = self._form_with_regions(["step_a", "result_low", "result_high"])
+        result = _default_get_step_regions(form)
+        self.assertEqual([r.key for r in result], ["step_a"])
+
+    def test_preserves_order(self):
+        form = self._form_with_regions(["step_b", "step_a", "step_c"])
+        result = _default_get_step_regions(form)
+        self.assertEqual([r.key for r in result], ["step_b", "step_a", "step_c"])
