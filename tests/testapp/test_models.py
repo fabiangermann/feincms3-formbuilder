@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 
@@ -47,6 +49,8 @@ class FormStepTest(TestCase):
             ordering=10,
         )
         self.assertEqual(step.region_key, "step_personal")
+        with patch("feincms3_formbuilder.models.STEP_REGION_PREFIX", "custom_"):
+            self.assertEqual(step.region_key, "custom_personal")
 
     def test_auto_generates_identifier(self):
         step = FormStep(

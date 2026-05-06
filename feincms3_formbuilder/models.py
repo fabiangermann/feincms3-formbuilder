@@ -12,6 +12,9 @@ from feincms3_forms.reporting import simple_report
 from feincms3_forms.validation import validate_uniqueness
 
 
+STEP_REGION_PREFIX = "step_"
+
+
 class StepSlugField(models.CharField):
     def deconstruct(self):
         name, _path, args, kwargs = super().deconstruct()
@@ -27,7 +30,7 @@ class StepSlugField(models.CharField):
             return get_random_string(
                 10, allowed_chars="abcdefghijklmnopqrstuvwxyz0123456789"
             )
-        if not f"step_{value}".isidentifier():
+        if not f"{STEP_REGION_PREFIX}{value}".isidentifier():
             raise ValidationError(
                 _("%(value)s is not a valid region key identifier."),
                 params={"value": value},
@@ -60,7 +63,7 @@ class AbstractFormStep(OrderableModel):
 
     @property
     def region_key(self):
-        return f"step_{self.identifier}"
+        return f"{STEP_REGION_PREFIX}{self.identifier}"
 
 
 def validate_with_renderer(configured_form, renderer):
