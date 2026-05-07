@@ -4,6 +4,7 @@ from django.core import mail
 from django.core.exceptions import ValidationError
 from django.template.exceptions import TemplateSyntaxError
 from django.test import SimpleTestCase, TestCase, override_settings
+from django.urls import reverse
 
 from feincms3_formbuilder.notifications import (
     AbstractFormNotification,
@@ -12,7 +13,7 @@ from feincms3_formbuilder.notifications import (
     send_form_notifications,
     validate_recipients,
 )
-from testapp.models import ConfiguredForm, FormNotification
+from testapp.models import ConfiguredForm, Email, FormNotification, RichText, Text
 
 
 class ValidateRecipientsTest(SimpleTestCase):
@@ -336,3 +337,59 @@ class SendFormNotificationsTest(TestCase):
     def test_empty_iterable_is_noop(self):
         send_form_notifications([], context={})
         self.assertEqual(len(mail.outbox), 0)
+
+
+class EndToEndNotificationsTest(TestCase):
+    def setUp(self):
+        self.cf = ConfiguredForm.objects.create(
+            name="Contact", slug="contact-end-to-end", form_type="simple",
+        )
+        Email.objects.create(
+            parent=self.cf, region="form", ordering=10,
+            name="email", label="Email", is_required=True,
+        )
+        Text.objects.create(
+            parent=self.cf, region="form", ordering=20,
+            name="name", label="Name", is_required=True,
+        )
+        RichText.objects.create(
+            parent=self.cf, region="success", ordering=10,
+            text="<p>Thanks!</p>",
+        )
+
+    def test_simple_form_post_sends_both_notifications(self):
+        FormNotification.objects.create(
+            configured_form=self.cf,
+            recipients="staff@example.com",
+            subject="New submission from {{ form_data.name }}",
+            body="<p>{{ form_data.name }} ({{ form_data.email }}) submitted.</p>",
+        )
+        FormNotification.objects.create(
+            configured_form=self.cf,
+            recipients="{{ form_data.email }}",
+            subject="Thanks {{ form_data.name }}",
+            body="<p>Thanks for getting in touch.</p>",
+        )
+
+        url = reverse("forms:form", kwargs={"slug": "contact-end-to-end"})
+        response = self.client.post(url, {
+            "name": "Alice",
+            "email": "alice@example.com",
+        })
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Thanks!")
+        self.assertEqual(len(mail.outbox), 2)
+        sent_to = sorted(m.to[0] for m in mail.outbox)
+        self.assertEqual(sent_to, ["alice@example.com", "staff@example.com"])
+        staff_msg = next(m for m in mail.outbox if m.to == ["staff@example.com"])
+        self.assertEqual(staff_msg.subject, "New submission from Alice")
+        self.assertIn(
+            "Alice (alice@example.com) submitted.",
+            staff_msg.alternatives[0][0],
+        )
+        user_msg = next(m for m in mail.outbox if m.to == ["alice@example.com"])
+        self.assertEqual(user_msg.subject, "Thanks Alice")
+        self.assertIn(
+            "Thanks for getting in touch.", user_msg.alternatives[0][0],
+        )
+
