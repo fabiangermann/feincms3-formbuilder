@@ -1,7 +1,6 @@
 from django.test import TestCase
 
 from feincms3_formbuilder.renderer import create_form_renderer
-
 from testapp.models import RichText, SimpleField
 
 

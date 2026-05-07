@@ -7,7 +7,6 @@ from feincms3_formbuilder.admin import (
     FormStepInline,
     simple_field_inlines,
 )
-
 from testapp.models import (
     ConfiguredForm,
     FormStep,

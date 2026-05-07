@@ -5,7 +5,6 @@ from django.test import TestCase
 from feincms3_formbuilder.templatetags.feincms3_formbuilder_tags import (
     make_submission_ref,
 )
-
 from testapp.models import ConfiguredForm
 
 

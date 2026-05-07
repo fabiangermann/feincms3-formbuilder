@@ -1,7 +1,7 @@
 from django.contrib.contenttypes.models import ContentType
 from django.test import TestCase
 
-from testapp.models import ConfiguredForm, FormSubmission, SimpleField, Text
+from testapp.models import ConfiguredForm, FormSubmission, Text
 
 
 class FormSubmissionTest(TestCase):

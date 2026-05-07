@@ -1,5 +1,4 @@
 from feincms3_formbuilder.processing import create_submission, render_success_region
-
 from testapp.models import FormSubmission
 from testapp.renderer import renderer
 

@@ -12,7 +12,6 @@ from feincms3_formbuilder.views import (
     compute_step_statuses,
     multistep_form_view,
 )
-
 from testapp.models import (
     ConfiguredForm,
     Email,

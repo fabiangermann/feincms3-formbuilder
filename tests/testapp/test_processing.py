@@ -7,7 +7,6 @@ from feincms3_formbuilder.processing import (
     render_success_region,
     resolve_ref,
 )
-
 from testapp.models import ConfiguredForm, FormSubmission
 
 
