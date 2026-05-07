@@ -1,7 +1,7 @@
 from django.core.exceptions import ValidationError
 from django.test import SimpleTestCase, TestCase
 
-from feincms3_formbuilder.notifications import AbstractFormNotification, validate_recipients
+from feincms3_formbuilder.notifications import AbstractFormNotification, _parse_recipients, validate_recipients
 from testapp.models import ConfiguredForm, FormNotification
 
 
@@ -106,6 +106,44 @@ class AbstractFormNotificationFullCleanTest(SimpleTestCase):
             recipients="info@example.com", subject="s", body="b",
         )
         instance.full_clean(exclude=["configured_form"])
+
+
+class ParseRecipientsTest(SimpleTestCase):
+    def test_single_email(self):
+        self.assertEqual(_parse_recipients("info@example.com"), ["info@example.com"])
+
+    def test_multiple_emails(self):
+        self.assertEqual(
+            _parse_recipients("info@example.com, sales@example.com"),
+            ["info@example.com", "sales@example.com"],
+        )
+
+    def test_strips_whitespace(self):
+        self.assertEqual(
+            _parse_recipients("  info@example.com  ,  sales@example.com  "),
+            ["info@example.com", "sales@example.com"],
+        )
+
+    def test_skips_empty_tokens(self):
+        self.assertEqual(
+            _parse_recipients("info@example.com, ,sales@example.com"),
+            ["info@example.com", "sales@example.com"],
+        )
+
+    def test_empty_input_raises(self):
+        with self.assertRaises(ValidationError) as ctx:
+            _parse_recipients("")
+        self.assertEqual(ctx.exception.code, "no_recipients")
+
+    def test_only_whitespace_raises(self):
+        with self.assertRaises(ValidationError) as ctx:
+            _parse_recipients("   ,  ")
+        self.assertEqual(ctx.exception.code, "no_recipients")
+
+    def test_invalid_email_raises(self):
+        with self.assertRaises(ValidationError) as ctx:
+            _parse_recipients("not-an-email")
+        self.assertEqual(ctx.exception.code, "invalid")
 
 
 class FormNotificationModelTest(TestCase):

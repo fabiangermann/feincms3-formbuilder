@@ -54,3 +54,18 @@ class AbstractFormNotification(models.Model):
 
     def __str__(self):
         return self.subject
+
+
+def _parse_recipients(rendered):
+    validator = EmailValidator()
+    recipients = []
+    for token in (t.strip() for t in rendered.split(",")):
+        if not token:
+            continue
+        validator(token)
+        recipients.append(token)
+    if not recipients:
+        raise ValidationError(
+            "No recipients after rendering.", code="no_recipients",
+        )
+    return recipients
