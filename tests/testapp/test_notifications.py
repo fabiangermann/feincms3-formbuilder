@@ -1,11 +1,15 @@
+import logging
+
 from django.core import mail
 from django.core.exceptions import ValidationError
+from django.template.exceptions import TemplateSyntaxError
 from django.test import SimpleTestCase, TestCase, override_settings
 
 from feincms3_formbuilder.notifications import (
     AbstractFormNotification,
     _parse_recipients,
     _send_one,
+    send_form_notifications,
     validate_recipients,
 )
 from testapp.models import ConfiguredForm, FormNotification
@@ -270,3 +274,65 @@ class SendOneTest(TestCase):
         )
         with self.assertRaises(ValidationError):
             _send_one(n, {"form_data": {"email": "not-an-email"}})
+
+
+class SendFormNotificationsTest(TestCase):
+    def setUp(self):
+        self.cf = ConfiguredForm.objects.create(name="Test", form_type="simple")
+
+    def _make(self, **kwargs):
+        kwargs.setdefault("configured_form", self.cf)
+        kwargs.setdefault("recipients", "info@example.com")
+        kwargs.setdefault("subject", "s")
+        kwargs.setdefault("body", "<p>x</p>")
+        return FormNotification.objects.create(**kwargs)
+
+    def test_sends_all_notifications(self):
+        a = self._make(recipients="a@example.com")
+        b = self._make(recipients="b@example.com")
+        send_form_notifications([a, b], context={})
+        recipients = sorted(m.to[0] for m in mail.outbox)
+        self.assertEqual(recipients, ["a@example.com", "b@example.com"])
+
+    def test_fail_silently_default_swallows_errors(self):
+        bad = self._make(subject="{% bogus %}")
+        good = self._make(recipients="ok@example.com")
+        with self.assertLogs(
+            "feincms3_formbuilder.notifications", level=logging.ERROR,
+        ) as captured:
+            send_form_notifications([bad, good], context={})
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ["ok@example.com"])
+        self.assertTrue(any("Failed to send" in r for r in captured.output))
+
+    def test_fail_silently_false_reraises(self):
+        bad = self._make(subject="{% bogus %}")
+        with self.assertRaises(TemplateSyntaxError):
+            send_form_notifications([bad], context={}, fail_silently=False)
+
+    def test_custom_send_one_is_used(self):
+        calls = []
+
+        def custom_send_one(notification, context):
+            calls.append((notification.pk, dict(context)))
+
+        n = self._make()
+        send_form_notifications(
+            [n], context={"key": "value"}, send_one=custom_send_one,
+        )
+        self.assertEqual(calls, [(n.pk, {"key": "value"})])
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_invalid_rendered_recipient_logged_under_default(self):
+        n = self._make(recipients="{{ form_data.email }}")
+        with self.assertLogs(
+            "feincms3_formbuilder.notifications", level=logging.ERROR,
+        ):
+            send_form_notifications(
+                [n], context={"form_data": {"email": "not-an-email"}},
+            )
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_empty_iterable_is_noop(self):
+        send_form_notifications([], context={})
+        self.assertEqual(len(mail.outbox), 0)

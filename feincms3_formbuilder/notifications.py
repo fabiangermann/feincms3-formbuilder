@@ -7,6 +7,7 @@ Public API:
 - ``send_form_notifications`` — render and send notifications using a context dict.
 """
 
+import logging
 import re
 
 from django.conf import settings
@@ -18,6 +19,8 @@ from django.template import Context, Template
 from django.utils.translation import gettext_lazy as _
 from html2text import html2text
 
+
+logger = logging.getLogger("feincms3_formbuilder.notifications")
 
 VARIABLE_RE = re.compile(r"\{\{.*?\}\}")
 
@@ -98,3 +101,34 @@ def _send_one(notification, context):
     )
     message.attach_alternative(rendered_html, "text/html")
     message.send()
+
+
+def send_form_notifications(
+    notifications, *, context, fail_silently=True, send_one=None,
+):
+    """Render and send each notification using the given context dict.
+
+    ``notifications`` is any iterable of ``AbstractFormNotification``
+    subclass instances. ``context`` is a plain dict of variables made
+    available to the templates rendered for ``recipients``, ``subject``,
+    and ``body``.
+
+    On any per-notification failure (template error, invalid rendered
+    recipient, SMTP error), logs the failure at ``ERROR`` and continues
+    with the remaining notifications when ``fail_silently`` is ``True``
+    (the default), or re-raises when ``False``.
+
+    Pass ``send_one=callable`` to override the default per-notification
+    send function — useful when projects extend
+    ``AbstractFormNotification`` with extra fields (e.g. ``reply_to``).
+    """
+    send_one = send_one or _send_one
+    for notification in notifications:
+        try:
+            send_one(notification, context)
+        except Exception:
+            logger.exception(
+                "Failed to send notification %r", notification,
+            )
+            if not fail_silently:
+                raise
