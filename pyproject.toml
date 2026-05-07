@@ -37,6 +37,7 @@ dependencies = [
   "django-content-editor",
   "feincms3",
   "feincms3-forms>=0.6",
+  "html2text",
 ]
 optional-dependencies.tests = [
   "coverage",
