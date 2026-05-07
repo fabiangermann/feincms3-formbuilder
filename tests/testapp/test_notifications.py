@@ -1,7 +1,8 @@
 from django.core.exceptions import ValidationError
-from django.test import SimpleTestCase
+from django.test import SimpleTestCase, TestCase
 
 from feincms3_formbuilder.notifications import AbstractFormNotification, validate_recipients
+from testapp.models import ConfiguredForm, FormNotification
 
 
 class ValidateRecipientsTest(SimpleTestCase):
@@ -57,11 +58,6 @@ class ValidateRecipientsTest(SimpleTestCase):
         validate_recipients("{{ submission.data.contact }}")
 
 
-class ConcreteNotificationForTest(AbstractFormNotification):
-    class Meta(AbstractFormNotification.Meta):
-        app_label = "testapp"
-
-
 class AbstractFormNotificationTest(SimpleTestCase):
     def test_is_abstract(self):
         self.assertTrue(AbstractFormNotification._meta.abstract)
@@ -78,35 +74,48 @@ class AbstractFormNotificationTest(SimpleTestCase):
         AbstractFormNotification._meta.get_field("body")
 
     def test_str_returns_subject(self):
-        instance = ConcreteNotificationForTest(subject="Hello")
+        instance = FormNotification(subject="Hello")
         self.assertEqual(str(instance), "Hello")
 
 
 class AbstractFormNotificationFullCleanTest(SimpleTestCase):
     def test_full_clean_attaches_blank_error_to_recipients(self):
-        instance = ConcreteNotificationForTest(
+        instance = FormNotification(
             recipients="", subject="s", body="b",
         )
         with self.assertRaises(ValidationError) as ctx:
-            instance.full_clean()
+            instance.full_clean(exclude=["configured_form"])
         self.assertIn("recipients", ctx.exception.error_dict)
         self.assertEqual(
             ctx.exception.error_dict["recipients"][0].code, "blank",
         )
 
     def test_full_clean_attaches_invalid_email_error_to_recipients(self):
-        instance = ConcreteNotificationForTest(
+        instance = FormNotification(
             recipients="not-an-email", subject="s", body="b",
         )
         with self.assertRaises(ValidationError) as ctx:
-            instance.full_clean()
+            instance.full_clean(exclude=["configured_form"])
         self.assertIn("recipients", ctx.exception.error_dict)
         self.assertEqual(
             ctx.exception.error_dict["recipients"][0].code, "invalid",
         )
 
     def test_full_clean_accepts_valid_recipients(self):
-        instance = ConcreteNotificationForTest(
+        instance = FormNotification(
             recipients="info@example.com", subject="s", body="b",
         )
-        instance.full_clean()
+        instance.full_clean(exclude=["configured_form"])
+
+
+class FormNotificationModelTest(TestCase):
+    def test_fk_related_name_is_notifications(self):
+        cf = ConfiguredForm.objects.create(name="Test", form_type="simple")
+        n = FormNotification.objects.create(
+            configured_form=cf,
+            recipients="info@example.com",
+            subject="Hello",
+            body="<p>Hi</p>",
+        )
+        self.assertEqual(cf.notifications.count(), 1)
+        self.assertEqual(cf.notifications.get(), n)
