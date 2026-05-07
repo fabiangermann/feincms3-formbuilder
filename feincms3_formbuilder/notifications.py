@@ -9,10 +9,14 @@ Public API:
 
 import re
 
+from django.conf import settings
 from django.core.exceptions import ValidationError
+from django.core.mail import EmailMultiAlternatives
 from django.core.validators import EmailValidator
 from django.db import models
+from django.template import Context, Template
 from django.utils.translation import gettext_lazy as _
+from html2text import html2text
 
 
 VARIABLE_RE = re.compile(r"\{\{.*?\}\}")
@@ -69,3 +73,28 @@ def _parse_recipients(rendered):
             "No recipients after rendering.", code="no_recipients",
         )
     return recipients
+
+
+def _send_one(notification, context):
+    text_ctx = Context(context, autoescape=False)
+    html_ctx = Context(context, autoescape=True)
+
+    rendered_recipients = Template(notification.recipients).render(text_ctx)
+    rendered_subject = Template(notification.subject).render(text_ctx)
+    rendered_html = Template(notification.body).render(html_ctx)
+    rendered_text = html2text(rendered_html)
+
+    recipients = _parse_recipients(rendered_recipients)
+    from_email = (
+        getattr(settings, "FORMBUILDER_FROM_EMAIL", None)
+        or settings.DEFAULT_FROM_EMAIL
+    )
+
+    message = EmailMultiAlternatives(
+        subject=rendered_subject.strip(),
+        body=rendered_text,
+        from_email=from_email,
+        to=recipients,
+    )
+    message.attach_alternative(rendered_html, "text/html")
+    message.send()

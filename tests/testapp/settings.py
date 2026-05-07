@@ -53,3 +53,6 @@ MIDDLEWARE = [
 ]
 
 DEFAULT_AUTO_FIELD = "django.db.models.AutoField"
+
+EMAIL_BACKEND = "django.core.mail.backends.locmem.EmailBackend"
+DEFAULT_FROM_EMAIL = "noreply@example.com"

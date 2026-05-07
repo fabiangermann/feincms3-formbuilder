@@ -1,7 +1,13 @@
+from django.core import mail
 from django.core.exceptions import ValidationError
-from django.test import SimpleTestCase, TestCase
+from django.test import SimpleTestCase, TestCase, override_settings
 
-from feincms3_formbuilder.notifications import AbstractFormNotification, _parse_recipients, validate_recipients
+from feincms3_formbuilder.notifications import (
+    AbstractFormNotification,
+    _parse_recipients,
+    _send_one,
+    validate_recipients,
+)
 from testapp.models import ConfiguredForm, FormNotification
 
 
@@ -157,3 +163,110 @@ class FormNotificationModelTest(TestCase):
         )
         self.assertEqual(cf.notifications.count(), 1)
         self.assertEqual(cf.notifications.get(), n)
+
+
+class SendOneTest(TestCase):
+    def setUp(self):
+        self.cf = ConfiguredForm.objects.create(name="Test", form_type="simple")
+
+    def test_sends_email_with_rendered_fields(self):
+        n = FormNotification.objects.create(
+            configured_form=self.cf,
+            recipients="info@example.com",
+            subject="Hello {{ form_data.name }}",
+            body="<p>Thanks {{ form_data.name }}.</p>",
+        )
+        _send_one(n, {"form_data": {"name": "Alice"}})
+        self.assertEqual(len(mail.outbox), 1)
+        message = mail.outbox[0]
+        self.assertEqual(message.subject, "Hello Alice")
+        self.assertEqual(message.to, ["info@example.com"])
+        self.assertIn("Thanks Alice", message.body)
+        self.assertEqual(len(message.alternatives), 1)
+        html_content, mimetype = message.alternatives[0]
+        self.assertEqual(mimetype, "text/html")
+        self.assertIn("<p>Thanks Alice.</p>", html_content)
+
+    def test_renders_recipients_from_context(self):
+        n = FormNotification.objects.create(
+            configured_form=self.cf,
+            recipients="{{ form_data.email }}",
+            subject="Hi",
+            body="<p>Hi</p>",
+        )
+        _send_one(n, {"form_data": {"email": "alice@example.com"}})
+        self.assertEqual(mail.outbox[-1].to, ["alice@example.com"])
+
+    def test_html_body_autoescape_on(self):
+        n = FormNotification.objects.create(
+            configured_form=self.cf,
+            recipients="info@example.com",
+            subject="s",
+            body="<p>{{ form_data.note }}</p>",
+        )
+        _send_one(n, {"form_data": {"note": "<script>x</script>"}})
+        html_content, _ = mail.outbox[-1].alternatives[0]
+        self.assertIn("&lt;script&gt;x&lt;/script&gt;", html_content)
+        self.assertNotIn("<script>x</script>", html_content)
+
+    def test_subject_autoescape_off(self):
+        n = FormNotification.objects.create(
+            configured_form=self.cf,
+            recipients="info@example.com",
+            subject="Order #{{ form_data.id }} & status",
+            body="<p>x</p>",
+        )
+        _send_one(n, {"form_data": {"id": "42"}})
+        self.assertEqual(mail.outbox[-1].subject, "Order #42 & status")
+
+    def test_recipients_autoescape_off(self):
+        n = FormNotification.objects.create(
+            configured_form=self.cf,
+            recipients="{{ form_data.email }}",
+            subject="s",
+            body="<p>x</p>",
+        )
+        _send_one(n, {"form_data": {"email": "a+b&c@example.com"}})
+        self.assertEqual(mail.outbox[-1].to, ["a+b&c@example.com"])
+
+    def test_uses_default_from_email(self):
+        n = FormNotification.objects.create(
+            configured_form=self.cf,
+            recipients="info@example.com",
+            subject="s",
+            body="<p>x</p>",
+        )
+        _send_one(n, {})
+        self.assertEqual(mail.outbox[-1].from_email, "noreply@example.com")
+
+    @override_settings(FORMBUILDER_FROM_EMAIL="forms@example.com")
+    def test_formbuilder_from_email_takes_precedence(self):
+        n = FormNotification.objects.create(
+            configured_form=self.cf,
+            recipients="info@example.com",
+            subject="s",
+            body="<p>x</p>",
+        )
+        _send_one(n, {})
+        self.assertEqual(mail.outbox[-1].from_email, "forms@example.com")
+
+    @override_settings(FORMBUILDER_FROM_EMAIL="")
+    def test_empty_formbuilder_from_email_falls_back(self):
+        n = FormNotification.objects.create(
+            configured_form=self.cf,
+            recipients="info@example.com",
+            subject="s",
+            body="<p>x</p>",
+        )
+        _send_one(n, {})
+        self.assertEqual(mail.outbox[-1].from_email, "noreply@example.com")
+
+    def test_invalid_rendered_recipient_raises(self):
+        n = FormNotification.objects.create(
+            configured_form=self.cf,
+            recipients="{{ form_data.email }}",
+            subject="s",
+            body="<p>x</p>",
+        )
+        with self.assertRaises(ValidationError):
+            _send_one(n, {"form_data": {"email": "not-an-email"}})
