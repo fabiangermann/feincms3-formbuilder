@@ -203,6 +203,149 @@ resolved generic FK on the submission.
 
 ---
 
+## Notifications
+
+`feincms3-formbuilder` ships an optional notification module that lets a
+project send confirmation/staff emails after a form submission. The
+package provides the abstract model, validator, and helper; the project
+owns the concrete model, admin integration, and editor widget.
+
+### Concrete `FormNotification` model
+
+```python
+from feincms3_formbuilder.notifications import AbstractFormNotification
+
+
+class FormNotification(AbstractFormNotification):
+    configured_form = models.ForeignKey(
+        ConfiguredForm,
+        on_delete=models.CASCADE,
+        related_name="notifications",
+    )
+```
+
+`AbstractFormNotification` provides three fields:
+
+| Field | Purpose |
+|---|---|
+| `recipients` | Comma-separated emails or a Django template variable that resolves to one (e.g. `{{ form_data.email }}`) |
+| `subject` | Plain-text subject; supports template variables |
+| `body` | HTML body; supports template variables; rendered with autoescape on |
+
+The `recipients` field is validated at save time (via `validators=[validate_recipients]` on the field):
+
+- Empty values are rejected.
+- If the value contains any `{{ … }}` it is accepted as-is (the package
+  cannot inspect what's in the project's context).
+- Otherwise each comma-separated token must validate as an email.
+
+### Sending notifications from `process()`
+
+```python
+# myapp/processing.py
+from feincms3_formbuilder.processing import create_submission, render_success_region
+from feincms3_formbuilder.notifications import send_form_notifications
+
+
+def process_simple_form(request, form, *, configured_form):
+    data = dict(form.cleaned_data)
+    submission = create_submission(
+        request, configured_form, data, submission_model=FormSubmission,
+    )
+    send_form_notifications(
+        configured_form.notifications.all(),
+        context={"form_data": data, "submission": submission},
+    )
+    return render_success_region(request, configured_form, renderer=renderer)
+```
+
+`context` is a plain dict; whatever keys you place there are available
+to the editor as Django template variables in `recipients`, `subject`,
+and `body`. The `form_data` key is the documented standard (used by the
+notification body's help text); other keys are project-specific.
+
+### Variables for editors
+
+Documented out of the box:
+
+- `{{ form_data.<field_name> }}` — any cleaned value from the form
+
+Anything else (a submission link, a related-object link, a project-
+specific identifier) is whatever the project decides to put in `context`.
+
+### Failure handling
+
+`send_form_notifications` defaults to `fail_silently=True`: per-notification
+failures (template syntax errors, invalid rendered recipients, SMTP errors)
+are logged via the `feincms3_formbuilder.notifications` logger at `ERROR`
+and the remaining notifications continue to send. Pass
+`fail_silently=False` to re-raise instead — useful in tests.
+
+### `FORMBUILDER_FROM_EMAIL` setting
+
+The From address used for every notification is, in order:
+
+1. `settings.FORMBUILDER_FROM_EMAIL` if set and non-empty
+2. `settings.DEFAULT_FROM_EMAIL`
+
+### Admin integration
+
+The package ships no admin classes for notifications. Wire your inline
+in your project admin:
+
+```python
+class FormNotificationInline(admin.TabularInline):
+    model = FormNotification
+    extra = 0
+
+
+@admin.register(ConfiguredForm)
+class ConfiguredFormAdmin(admin.ModelAdmin):
+    inlines = [
+        FormStepInline.for_model(FormStep),
+        FormNotificationInline,
+        *simple_field_inlines(SimpleField),
+    ]
+```
+
+For a rich-text editor on `body`, use `formfield_overrides` or a custom
+`ModelForm`:
+
+```python
+from django_prose_editor.fields import ProseEditorFormField
+
+class FormNotificationInlineForm(forms.ModelForm):
+    body = ProseEditorFormField()
+    class Meta:
+        model = FormNotification
+        fields = "__all__"
+
+class FormNotificationInline(admin.TabularInline):
+    model = FormNotification
+    form = FormNotificationInlineForm
+```
+
+### Extending with extra fields
+
+Projects that want `from_email` / `reply_to` / `bcc` / `cc` add fields
+to their concrete subclass and pass a custom `send_one` to the helper:
+
+```python
+from feincms3_formbuilder.notifications import send_form_notifications
+
+def my_send_one(notification, context):
+    # Build EmailMultiAlternatives including notification.reply_to etc.
+    ...
+
+send_form_notifications(
+    configured_form.notifications.all(),
+    context={"form_data": data, "submission": submission},
+    send_one=my_send_one,
+)
+```
+
+---
+
 ## Validation
 
 Implement a `validate` function that returns a list of error strings.  Use the
