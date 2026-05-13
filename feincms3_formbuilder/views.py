@@ -137,7 +137,7 @@ def _merge_post_data(accumulated_data, form):
 
 def _render_step(
     request, configured_form, contents, step_regions, step_index, accumulated_data,
-    *, renderer, form_class, validation_form_class,
+    *, renderer, form_class, validation_form_class, extra_context=None,
 ):
     """Render a specific step, pre-filled with accumulated session data."""
     current_region = step_regions[step_index]
@@ -159,21 +159,21 @@ def _render_step(
         contents, current_region.key, context, renderer=renderer
     )
 
-    return render(
-        request,
-        "feincms3_formbuilder/multistep_form.html",
-        {
-            "configured_form": configured_form,
-            "form": form,
-            "step_content": step_content,
-            "current_step": step_index + 1,
-            "total_steps": total_steps,
-            "current_step_name": current_region.title,
-            "steps": steps,
-            "is_first_step": step_index == 0,
-            "is_last_step": step_index == total_steps - 1,
-        },
-    )
+    ctx = {
+        "configured_form": configured_form,
+        "form": form,
+        "step_content": step_content,
+        "current_step": step_index + 1,
+        "total_steps": total_steps,
+        "current_step_name": current_region.title,
+        "steps": steps,
+        "is_first_step": step_index == 0,
+        "is_last_step": step_index == total_steps - 1,
+    }
+    if extra_context:
+        ctx.update(extra_context)
+
+    return render(request, "feincms3_formbuilder/multistep_form.html", ctx)
 
 
 def multistep_form_view(
@@ -189,6 +189,13 @@ def multistep_form_view(
         get_step_regions = _default_get_step_regions
     contents = contents_for_item(configured_form, plugins=renderer.plugins())
     step_regions = get_step_regions(configured_form)
+    steps_list = list(configured_form.steps.all())
+
+    def _step_labels(step_index):
+        if step_index < len(steps_list):
+            step = steps_list[step_index]
+            return {"back_label": step.back_label, "next_label": step.next_label}
+        return {}
 
     if (total_steps := len(step_regions)) == 0:
         return render(
@@ -223,6 +230,7 @@ def multistep_form_view(
                 step_data["step"], accumulated_data,
                 renderer=renderer, form_class=form_class,
                 validation_form_class=validation_form_class,
+                extra_context=_step_labels(step_data["step"]),
             )
 
         if submitting:
@@ -263,6 +271,7 @@ def multistep_form_view(
                     next_step, accumulated_data,
                     renderer=renderer, form_class=form_class,
                     validation_form_class=validation_form_class,
+                    extra_context=_step_labels(next_step),
                 )
 
         # Validation failed: re-render current step with errors
@@ -287,6 +296,7 @@ def multistep_form_view(
                 "steps": steps,
                 "is_first_step": current_step == 0,
                 "is_last_step": current_step == total_steps - 1,
+                **_step_labels(current_step),
             },
         )
 
@@ -296,4 +306,5 @@ def multistep_form_view(
         current_step, accumulated_data,
         renderer=renderer, form_class=form_class,
         validation_form_class=validation_form_class,
+        extra_context=_step_labels(current_step),
     )

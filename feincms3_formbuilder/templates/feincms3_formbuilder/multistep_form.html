@@ -1,4 +1,7 @@
 {% load i18n %}
+{% translate "Back" as default_back_label %}
+{% translate "Next" as default_next_label %}
+{% translate "Submit" as default_submit_label %}
 
 <form method="post">
   {% csrf_token %}
@@ -22,17 +25,17 @@
   <div>
     {% if not is_first_step %}
       <button type="submit" name="_action" value="back" formnovalidate>
-        {% translate "Back" %}
+        {% firstof back_label default_back_label %}
       </button>
     {% endif %}
 
     {% if is_last_step %}
       <button type="submit" name="_action" value="submit">
-        {% translate "Submit" %}
+        {% firstof next_label default_submit_label %}
       </button>
     {% else %}
       <button type="submit" name="_action" value="next">
-        {% translate "Next" %}
+        {% firstof next_label default_next_label %}
       </button>
     {% endif %}
   </div>
