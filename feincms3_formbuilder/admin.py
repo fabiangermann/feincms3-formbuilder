@@ -9,7 +9,7 @@ from feincms3_forms import admin as forms_admin
 
 class FormStepInline(OrderableAdmin, admin.TabularInline):
     extra = 0
-    fields = ["title", "identifier", "ordering"]
+    fields = ["title", "identifier", "back_label", "next_label", "ordering"]
 
     @classmethod
     def for_model(cls, model):
