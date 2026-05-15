@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.0
+
+### Features
+
+- New `back_label` and `next_label` optional fields on `AbstractFormStep` to
+  override the Back/Next/Submit button labels on a per-step basis. When blank,
+  the template falls back to the translated default labels.
+- Added German (de) and French (fr) translations.
+
 ## 0.2.0
 
 ### Features
