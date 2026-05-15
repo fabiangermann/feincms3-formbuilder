@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.1
+
+### Bugfixes
+
+- Added missing `back_label` and `next_label` fields to the `FormStepInline`
+  admin so the fields introduced in 0.3.0 are actually editable in the Django
+  admin.
+
 ## 0.3.0
 
 ### Features
