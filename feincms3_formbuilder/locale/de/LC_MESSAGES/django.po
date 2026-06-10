@@ -121,7 +121,7 @@ msgstr "Formulareinreichung"
 
 #: models.py:173
 msgid "form submissions"
-msgstr "Formulareinreichtungen"
+msgstr "Formulareinreichungen"
 
 #: notifications.py:32
 msgid "Recipients must not be empty."
