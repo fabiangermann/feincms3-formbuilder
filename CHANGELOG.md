@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.2
+
+### Bugfixes
+
+- Fixed a typo in the German translation.
+
 ## 0.3.1
 
 ### Bugfixes
