@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.4
+
+### Features
+
+- New `FORMBUILDER_CLIENT_IP_RESOLVER` setting. Points at a dotted-path
+  callable used by `create_submission` to determine the client IP.
+  Defaults to `REMOTE_ADDR`; deployments behind a proxy can supply a
+  resolver that reads a forwarded header. A bad path is validated at
+  startup and raises `ImproperlyConfigured`.
+
 ## 0.3.2
 
 ### Bugfixes
