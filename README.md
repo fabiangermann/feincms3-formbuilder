@@ -288,6 +288,29 @@ The From address used for every notification is, in order:
 1. `settings.FORMBUILDER_FROM_EMAIL` if set and non-empty
 2. `settings.DEFAULT_FROM_EMAIL`
 
+### `FORMBUILDER_CLIENT_IP_RESOLVER` setting
+
+`create_submission` stores the client IP on each submission. By default it
+uses `REMOTE_ADDR` (the TCP peer address), which cannot be spoofed by
+clients. Deployments behind a proxy — where `REMOTE_ADDR` is the proxy —
+should set `FORMBUILDER_CLIENT_IP_RESOLVER` to a dotted path to a callable
+`(request) -> str | None` that consults the appropriate forwarded header:
+
+```python
+# settings.py
+FORMBUILDER_CLIENT_IP_RESOLVER = "myproject.utils.client_ip"
+
+# myproject/utils.py
+def client_ip(request):
+    xff = request.META.get("HTTP_X_FORWARDED_FOR", "")
+    return xff.split(",")[0].strip() or request.META.get("REMOTE_ADDR")
+```
+
+No forwarded header is honored by default because trusting one without a
+proxy in front would let clients spoof their own IP. The resolver lives
+in your project so the trust model (which header, how many hops) is
+explicit.
+
 ### Admin integration
 
 The package ships no admin classes for notifications. Wire your inline

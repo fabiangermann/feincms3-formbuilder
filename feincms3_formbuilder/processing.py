@@ -1,9 +1,11 @@
 from content_editor.contents import contents_for_item
+from django.conf import settings
 from django.contrib.contenttypes.models import ContentType
 from django.core import signing
 from django.core.exceptions import ObjectDoesNotExist
 from django.http import HttpResponse
 from django.template import Context
+from django.utils.module_loading import import_string
 from django.utils.safestring import mark_safe
 
 
@@ -29,6 +31,23 @@ def resolve_ref(data):
         return {}
 
 
+def get_client_ip(request):
+    """
+    Return the client IP for the given request.
+
+    Defaults to ``REMOTE_ADDR``, which comes from the TCP socket peer address
+    and cannot be spoofed by clients. Deployments behind a proxy should set
+    ``FORMBUILDER_CLIENT_IP_RESOLVER`` to a dotted path to a callable
+    ``(request) -> str | None`` that consults the appropriate forwarded
+    header. No forwarded header is honored by default because doing so
+    without a proxy in front would let clients spoof their own IP.
+    """
+    resolver_path = getattr(settings, "FORMBUILDER_CLIENT_IP_RESOLVER", None)
+    if resolver_path:
+        return import_string(resolver_path)(request)
+    return request.META.get("REMOTE_ADDR")
+
+
 def create_submission(request, configured_form, data, *, submission_model):
     """
     Create a form submission record.
@@ -40,7 +59,7 @@ def create_submission(request, configured_form, data, *, submission_model):
     return submission_model.objects.create(
         configured_form=configured_form,
         data=data,
-        ip_address=request.META.get("REMOTE_ADDR"),
+        ip_address=get_client_ip(request),
         user_agent=request.headers.get("user-agent", ""),
         **ref_kwargs,
     )
