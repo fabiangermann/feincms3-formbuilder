@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.3.5
+
+### Features
+
+- New optional XLSX export for form submissions. Install
+  `feincms3-formbuilder[xlsx]` and use `make_export_action(renderer)` to add an
+  admin action, or call `build_submissions_xlsx(queryset, renderer=renderer)`
+  directly.
+
+### Bugfixes
+
+- `get_formatted_data` now sorts fields by region order first, then by
+  `ordering` within each region. Previously fields were sorted by `ordering`
+  alone, which produced wrong column order for multi-step forms.
+
 ## 0.3.4
 
 ### Features
