@@ -181,7 +181,9 @@ class AbstractFormSubmission(models.Model):
             raise NotImplementedError(
                 "Pass field_model or override get_formatted_data in your subclass."
             )
-        form_fields = field_model.objects.filter(
-            parent=self.configured_form,
-        ).order_by("ordering")
-        return simple_report(contents=list(form_fields), data=self.data)
+        region_keys = [r.key for r in self.configured_form.regions]
+        form_fields = sorted(
+            field_model.objects.filter(parent=self.configured_form),
+            key=lambda f: (region_keys.index(f.region), f.ordering),
+        )
+        return simple_report(contents=form_fields, data=self.data)
