@@ -6,6 +6,24 @@ from django.utils.html import format_html
 from django.utils.translation import gettext_lazy as _
 from feincms3_forms import admin as forms_admin
 
+from feincms3_formbuilder.reporting import build_submissions_xlsx
+
+
+def make_export_action(renderer):
+    """Build an admin action exporting the selected submissions to an XLSX file.
+
+    The renderer is captured by the returned action, so enabling the export is a
+    matter of adding the action to a ModelAdmin's ``actions`` list.
+    """
+
+    @admin.action(description=_("Export selected submissions to Excel"))
+    def export_submissions_xlsx(modeladmin, request, queryset):
+        return build_submissions_xlsx(queryset, renderer=renderer).to_response(
+            "form-submissions.xlsx"
+        )
+
+    return export_submissions_xlsx
+
 
 class FormStepInline(OrderableAdmin, admin.TabularInline):
     extra = 0

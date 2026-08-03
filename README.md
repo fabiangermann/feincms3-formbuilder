@@ -478,6 +478,51 @@ class FormSubmissionAdmin(BaseFormSubmissionAdmin):
 
 ---
 
+## Submission export (XLSX)
+
+An optional Excel export of form submissions, exposed as an admin action.
+Install the extra, which pulls in
+[`xlsxdocument`](https://pypi.org/project/xlsxdocument/) (and `openpyxl`):
+
+```
+pip install feincms3-formbuilder[xlsx]
+```
+
+`make_export_action(renderer)` builds an admin action; add it to your
+submission admin's `actions`:
+
+```python
+from feincms3_formbuilder.admin import BaseFormSubmissionAdmin, make_export_action
+from myapp.models import FormSubmission
+from myapp.renderer import renderer
+
+
+@admin.register(FormSubmission)
+class FormSubmissionAdmin(BaseFormSubmissionAdmin):
+    actions = [make_export_action(renderer)]
+```
+
+The produced workbook:
+
+- **One sheet per configured form**, named after the form.
+- **Columns**: `ID`, `submitted at`, `IP address`, `user agent`, then one
+  column per form field.
+
+To build the document outside the admin (e.g. from a management command), call
+the helper directly — it returns an `xlsxdocument.XLSXDocument`:
+
+```python
+from feincms3_formbuilder.reporting import build_submissions_xlsx
+
+xlsx = build_submissions_xlsx(FormSubmission.objects.all(), renderer=renderer)
+response = xlsx.to_response("form-submissions.xlsx")
+```
+
+`build_submissions_xlsx` raises `ImproperlyConfigured` if the `xlsx` extra is
+not installed.
+
+---
+
 ## Views and URLs
 
 Write a thin wrapper that looks up the `ConfiguredForm` and dispatches to

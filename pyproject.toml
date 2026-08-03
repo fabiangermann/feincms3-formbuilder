@@ -41,6 +41,10 @@ dependencies = [
 ]
 optional-dependencies.tests = [
   "coverage",
+  "xlsxdocument",
+]
+optional-dependencies.xlsx = [
+  "xlsxdocument",
 ]
 urls.Homepage = "https://github.com/feincms/feincms3-formbuilder/"
 
