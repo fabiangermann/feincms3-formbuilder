@@ -239,6 +239,30 @@ The `recipients` field is validated at save time (via `validators=[validate_reci
   cannot inspect what's in the project's context).
 - Otherwise each comma-separated token must validate as an email.
 
+To check that each `{{ form_data.<name> }}` in `recipients` refers to an
+email field of the form, call `validate_notification_recipients` from your
+form type's `validate` function (see [Validation](#validation)). The admin
+shows an error after saving:
+
+```python
+# myapp/validation.py
+from feincms3_formbuilder.models import validate_with_renderer
+from feincms3_formbuilder.notifications import validate_notification_recipients
+from myapp.renderer import renderer
+
+
+def validate_configured_form(configured_form):
+    return [
+        *validate_with_renderer(configured_form, renderer),
+        *validate_notification_recipients(
+            configured_form, renderer, configured_form.notifications.all(),
+        ),
+    ]
+```
+
+Only `SimpleFieldBase.Type.EMAIL` counts as an email field unless you pass
+`email_field_types`. A custom field plugin's type is its lowercased class name.
+
 ### Sending notifications from `process()`
 
 ```python

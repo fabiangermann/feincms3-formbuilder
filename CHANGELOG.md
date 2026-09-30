@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+### Features
+
+- New `validate_notification_recipients(configured_form, renderer,
+  notifications, *, email_field_types=...)` for the form type's `validate` function. It returns an
+  `Error` for every `{{ form_data.<name> }}` in a notification's `recipients`
+  whose field is missing or is not an email field (by default only
+  `SimpleFieldBase.Type.EMAIL`; pass `email_field_types` to allow custom
+  email fields). Previously such a
+  notification passed the admin save and only failed at send time. Projects
+  must add the call to their `validate` function (see README).
+
 ## 0.3.5
 
 ### Features

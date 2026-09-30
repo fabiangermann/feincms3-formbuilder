@@ -5,15 +5,25 @@ from django.core.exceptions import ValidationError
 from django.template.exceptions import TemplateSyntaxError
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import reverse
+from feincms3_forms import validation
 
 from feincms3_formbuilder.notifications import (
     AbstractFormNotification,
     _parse_recipients,
     _send_one,
     send_form_notifications,
+    validate_notification_recipients,
     validate_recipients,
 )
-from testapp.models import ConfiguredForm, Email, FormNotification, RichText, Text
+from testapp.models import (
+    ConfiguredForm,
+    Email,
+    FormNotification,
+    RichText,
+    SimpleField,
+    Text,
+)
+from testapp.renderer import renderer
 
 
 class ValidateRecipientsTest(SimpleTestCase):
@@ -393,3 +403,58 @@ class EndToEndNotificationsTest(TestCase):
             "Thanks for getting in touch.", user_msg.alternatives[0][0],
         )
 
+
+
+class ValidateNotificationRecipientsTest(TestCase):
+    """Recipient templates must point at email fields of the form.
+
+    Otherwise the notification fails only once a submission arrives with a
+    value that isn't an email address, and the submitter never learns about it.
+    """
+
+    def setUp(self):
+        self.cf = ConfiguredForm.objects.create(name="Test", form_type="simple")
+        Email.objects.create(
+            parent=self.cf, region="form", ordering=10,
+            name="email", label="Email",
+        )
+        Text.objects.create(
+            parent=self.cf, region="form", ordering=20,
+            name="name", label="Name",
+        )
+
+    def _validate(self, recipients, **kwargs):
+        FormNotification.objects.create(
+            configured_form=self.cf,
+            recipients=recipients,
+            subject="Hi",
+            body="<p>Hi</p>",
+        )
+        return validate_notification_recipients(
+            self.cf, renderer, self.cf.notifications.all(), **kwargs,
+        )
+
+    def test_email_field_accepted(self):
+        self.assertEqual(
+            self._validate("staff@example.com, {{ form_data.email }}"), [],
+        )
+
+    def test_text_field_is_error(self):
+        errors = self._validate("staff@example.com, {{ form_data.name|lower }}")
+        self.assertEqual(len(errors), 1)
+        self.assertIsInstance(errors[0], validation.Error)
+        self.assertIn("'name'", errors[0].message)
+
+    def test_configured_field_types_accepted(self):
+        """Projects with custom email field types list them explicitly."""
+        errors = self._validate(
+            "{{ form_data.name }}",
+            email_field_types=[SimpleField.Type.EMAIL, SimpleField.Type.TEXT],
+        )
+        self.assertEqual(errors, [])
+
+    def test_missing_field_is_error(self):
+        errors = self._validate("{{ form_data.e_mail }}")
+        self.assertEqual(len(errors), 1)
+        self.assertIsInstance(errors[0], validation.Error)
+        self.assertIn("'e_mail'", errors[0].message)

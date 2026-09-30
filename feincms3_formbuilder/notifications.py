@@ -4,6 +4,8 @@ Public API:
 
 - ``AbstractFormNotification`` — abstract base model.
 - ``validate_recipients`` — model-level validator for the ``recipients`` field.
+- ``validate_notification_recipients`` — form-level check that recipient
+  variables point at email fields.
 - ``send_form_notifications`` — render and send notifications using a context dict.
 """
 
@@ -17,12 +19,15 @@ from django.core.validators import EmailValidator
 from django.db import models
 from django.template import Context, Template
 from django.utils.translation import gettext_lazy as _
+from feincms3_forms.models import SimpleFieldBase
+from feincms3_forms.validation import Error
 from html2text import html2text
 
 
 logger = logging.getLogger("feincms3_formbuilder.notifications")
 
 VARIABLE_RE = re.compile(r"\{\{.*?\}\}")
+FORM_DATA_VARIABLE_RE = re.compile(r"\{\{\s*form_data\.(\w+)")
 
 
 def validate_recipients(value):
@@ -31,6 +36,10 @@ def validate_recipients(value):
     if not value:
         raise ValidationError(_("Recipients must not be empty."), code="empty")
 
+    # A field validator cannot see the form's fields, so values containing
+    # template variables are not validated here. Checking those variables
+    # requires the project to call ``validate_notification_recipients`` from
+    # its form type's ``validate`` function.
     if VARIABLE_RE.search(value):
         return
 
@@ -132,3 +141,48 @@ def send_form_notifications(
             )
             if not fail_silently:
                 raise
+
+
+def validate_notification_recipients(
+    configured_form,
+    renderer,
+    notifications,
+    *,
+    email_field_types=(SimpleFieldBase.Type.EMAIL,),
+):
+    """Check that ``{{ form_data.<name> }}`` in recipients names an email field.
+
+    ``validate_recipients`` accepts any template variable because a field
+    validator cannot see the form's fields. Without this check, a reference to
+    a missing or non-email field only fails at send time, when the submitter's
+    notification is silently dropped. Call it from the form type's
+    ``validate`` function; the admin shows the returned errors after saving.
+
+    ``email_field_types`` lists the field ``type`` values that count as email
+    fields. Custom field plugins have their lowercased class name as type.
+    """
+    field_types = {
+        name: attributes["type"]
+        for name, attributes in configured_form.get_formfields_union(
+            plugins=renderer.plugins(), attributes=["type"],
+        )
+    }
+    errors = []
+    for notification in notifications:
+        for name in FORM_DATA_VARIABLE_RE.findall(notification.recipients):
+            if name not in field_types:
+                message = _(
+                    "Notification \"{notification}\": recipients refer to"
+                    " field '{name}', which does not exist."
+                )
+            elif field_types[name] not in email_field_types:
+                message = _(
+                    "Notification \"{notification}\": recipients refer to"
+                    " field '{name}', which is not an email address field."
+                )
+            else:
+                continue
+            errors.append(
+                Error(message.format(notification=notification, name=name))
+            )
+    return errors
