@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-05-13 14:22-0500\n"
+"POT-Creation-Date: 2026-10-01 13:47+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -18,19 +18,23 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n > 1);\n"
 
-#: admin.py:96
+#: admin.py:19
+msgid "Export selected submissions to Excel"
+msgstr "Exporter les soumissions sélectionnées vers Excel"
+
+#: admin.py:114
 msgid "Related object"
 msgstr "Objet associé"
 
-#: admin.py:108
+#: admin.py:126
 msgid "formatted data"
 msgstr "données formatées"
 
-#: admin.py:112
+#: admin.py:130
 msgid "related object"
 msgstr "objet associé"
 
-#: apps.py:8
+#: apps.py:11
 msgid "feincms3 formbuilder"
 msgstr ""
 
@@ -123,27 +127,27 @@ msgstr "soumission de formulaire"
 msgid "form submissions"
 msgstr "soumissions de formulaire"
 
-#: notifications.py:32
+#: notifications.py:37
 msgid "Recipients must not be empty."
 msgstr "Les destinataires ne doivent pas être vides."
 
-#: notifications.py:41
+#: notifications.py:43
 msgid "Empty email address in recipients list."
 msgstr "Adresse e-mail vide dans la liste des destinataires."
 
-#: notifications.py:49
+#: notifications.py:58
 msgid "recipients"
 msgstr "destinataires"
 
-#: notifications.py:51
+#: notifications.py:60
 msgid "subject"
 msgstr "objet"
 
-#: notifications.py:52
+#: notifications.py:61
 msgid "body"
 msgstr ""
 
-#: notifications.py:53
+#: notifications.py:62
 msgid ""
 "HTML. Supports {{ form_data.<field_name> }} and any keys the project places "
 "in the notification context."
@@ -151,13 +155,31 @@ msgstr ""
 "HTML. Prend en charge {{ form_data.<field_name> }} et toutes les clés mises "
 "à disposition par le projet dans le contexte de notification."
 
-#: notifications.py:59
+#: notifications.py:68
 msgid "form notification"
 msgstr "notification de formulaire"
 
-#: notifications.py:60
+#: notifications.py:69
 msgid "form notifications"
 msgstr "notifications de formulaire"
+
+#: notifications.py:175
+#, python-brace-format
+msgid ""
+"Notification \"{notification}\": recipients refer to field '{name}', which "
+"does not exist."
+msgstr ""
+"Notification \"{notification}\" : les destinataires font référence au "
+"champ '{name}', qui n'existe pas."
+
+#: notifications.py:180
+#, python-brace-format
+msgid ""
+"Notification \"{notification}\": recipients refer to field '{name}', which "
+"is not an email address field."
+msgstr ""
+"Notification \"{notification}\" : les destinataires font référence au "
+"champ '{name}', qui n'est pas un champ d'adresse e-mail."
 
 #: templates/feincms3_formbuilder/form.html:8
 #: templates/feincms3_formbuilder/multistep_form.html:4
