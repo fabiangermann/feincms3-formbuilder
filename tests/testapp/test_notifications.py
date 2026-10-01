@@ -78,6 +78,17 @@ class ValidateRecipientsTest(SimpleTestCase):
     def test_arbitrary_variable_path_accepted(self):
         validate_recipients("{{ submission.data.contact }}")
 
+    def test_invalid_literal_mixed_with_variable_rejected(self):
+        """A typo in a fixed address would otherwise break every send."""
+        with self.assertRaises(ValidationError) as ctx:
+            validate_recipients("staff@exmaple, {{ form_data.email }}")
+        self.assertEqual(ctx.exception.code, "invalid")
+
+    def test_empty_token_mixed_with_variable_rejected(self):
+        with self.assertRaises(ValidationError) as ctx:
+            validate_recipients("{{ form_data.email }}, ")
+        self.assertEqual(ctx.exception.code, "empty_token")
+
 
 class AbstractFormNotificationTest(SimpleTestCase):
     def test_is_abstract(self):

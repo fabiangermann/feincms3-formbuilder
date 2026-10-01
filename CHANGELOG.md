@@ -13,6 +13,13 @@
   notification passed the admin save and only failed at send time. Projects
   must add the call to their `validate` function (see README).
 
+### Bugfixes
+
+- `validate_recipients` now validates the fixed addresses in `recipients`
+  even when the value also contains a template variable. Previously a value
+  like `staff@exmaple, {{ form_data.email }}` passed the save and every
+  notification failed at send time.
+
 ## 0.3.5
 
 ### Features

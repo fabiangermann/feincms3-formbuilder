@@ -235,9 +235,9 @@ class FormNotification(AbstractFormNotification):
 The `recipients` field is validated at save time (via `validators=[validate_recipients]` on the field):
 
 - Empty values are rejected.
-- If the value contains any `{{ … }}` it is accepted as-is (the package
-  cannot inspect what's in the project's context).
-- Otherwise each comma-separated token must validate as an email.
+- Each comma-separated recipient must validate as an email, unless it
+  contains `{{ … }}` (the package cannot inspect what's in the project's
+  context).
 
 To check that each `{{ form_data.<name> }}` in `recipients` refers to an
 email field of the form, call `validate_notification_recipients` from your

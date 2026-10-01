@@ -36,13 +36,6 @@ def validate_recipients(value):
     if not value:
         raise ValidationError(_("Recipients must not be empty."), code="empty")
 
-    # A field validator cannot see the form's fields, so values containing
-    # template variables are not validated here. Checking those variables
-    # requires the project to call ``validate_notification_recipients`` from
-    # its form type's ``validate`` function.
-    if VARIABLE_RE.search(value):
-        return
-
     validator = EmailValidator()
     for token in (t.strip() for t in value.split(",")):
         if not token:
@@ -50,6 +43,13 @@ def validate_recipients(value):
                 _("Empty email address in recipients list."),
                 code="empty_token",
             )
+        # A field validator cannot see the form's fields, so recipients
+        # containing template variables are not validated here. Checking those
+        # variables requires the project to call
+        # ``validate_notification_recipients`` from its form type's
+        # ``validate`` function.
+        if VARIABLE_RE.search(token):
+            continue
         validator(token)
 
 
