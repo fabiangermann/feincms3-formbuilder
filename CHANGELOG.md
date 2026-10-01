@@ -19,6 +19,11 @@
   even when the value also contains a template variable. Previously a value
   like `staff@exmaple, {{ form_data.email }}` passed the save and every
   notification failed at send time.
+- `send_form_notifications` now skips rendered recipients that are not valid
+  email addresses and sends the notification to the remaining ones, logging
+  the skipped count at `ERROR`. Previously one invalid address, e.g. a
+  submitter's typo, stopped the notification for all recipients. A
+  notification without any valid recipient still fails as before.
 
 ## 0.3.5
 

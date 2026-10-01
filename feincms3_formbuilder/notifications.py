@@ -73,18 +73,29 @@ class AbstractFormNotification(models.Model):
 
 
 def _parse_recipients(rendered):
+    """Split rendered recipients into valid addresses and an invalid count.
+
+    Invalid addresses are dropped so that one bad submitter value doesn't stop
+    the notification for the remaining recipients. Raises only when no valid
+    recipient is left.
+    """
     validator = EmailValidator()
     recipients = []
+    invalid_count = 0
     for token in (t.strip() for t in rendered.split(",")):
         if not token:
             continue
-        validator(token)
-        recipients.append(token)
+        try:
+            validator(token)
+        except ValidationError:
+            invalid_count += 1
+        else:
+            recipients.append(token)
     if not recipients:
         raise ValidationError(
             "No recipients after rendering.", code="no_recipients",
         )
-    return recipients
+    return recipients, invalid_count
 
 
 def _send_one(notification, context):
@@ -96,7 +107,14 @@ def _send_one(notification, context):
     rendered_html = Template(notification.body).render(html_ctx)
     rendered_text = html2text(rendered_html)
 
-    recipients = _parse_recipients(rendered_recipients)
+    recipients, invalid_count = _parse_recipients(rendered_recipients)
+    if invalid_count:
+        # ERROR rather than WARNING so error trackers still report the
+        # dropped recipients.
+        logger.error(
+            "Skipped %d invalid recipient(s) of notification %r",
+            invalid_count, notification,
+        )
     from_email = (
         getattr(settings, "FORMBUILDER_FROM_EMAIL", None)
         or settings.DEFAULT_FROM_EMAIL
@@ -122,7 +140,7 @@ def send_form_notifications(
     available to the templates rendered for ``recipients``, ``subject``,
     and ``body``.
 
-    On any per-notification failure (template error, invalid rendered
+    On any per-notification failure (template error, no valid rendered
     recipient, SMTP error), logs the failure at ``ERROR`` and continues
     with the remaining notifications when ``fail_silently`` is ``True``
     (the default), or re-raises when ``False``.

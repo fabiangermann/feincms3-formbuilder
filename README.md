@@ -299,8 +299,11 @@ specific identifier) is whatever the project decides to put in `context`.
 
 ### Failure handling
 
+Rendered recipients that are not valid email addresses are skipped and logged
+at `ERROR`; the notification is still sent to the remaining recipients.
+
 `send_form_notifications` defaults to `fail_silently=True`: per-notification
-failures (template syntax errors, invalid rendered recipients, SMTP errors)
+failures (template syntax errors, no valid rendered recipient, SMTP errors)
 are logged via the `feincms3_formbuilder.notifications` logger at `ERROR`
 and the remaining notifications continue to send. Pass
 `fail_silently=False` to re-raise instead — useful in tests.

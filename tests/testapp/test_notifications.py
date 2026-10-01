@@ -142,24 +142,26 @@ class AbstractFormNotificationFullCleanTest(SimpleTestCase):
 
 class ParseRecipientsTest(SimpleTestCase):
     def test_single_email(self):
-        self.assertEqual(_parse_recipients("info@example.com"), ["info@example.com"])
+        self.assertEqual(
+            _parse_recipients("info@example.com"), (["info@example.com"], 0),
+        )
 
     def test_multiple_emails(self):
         self.assertEqual(
             _parse_recipients("info@example.com, sales@example.com"),
-            ["info@example.com", "sales@example.com"],
+            (["info@example.com", "sales@example.com"], 0),
         )
 
     def test_strips_whitespace(self):
         self.assertEqual(
             _parse_recipients("  info@example.com  ,  sales@example.com  "),
-            ["info@example.com", "sales@example.com"],
+            (["info@example.com", "sales@example.com"], 0),
         )
 
     def test_skips_empty_tokens(self):
         self.assertEqual(
             _parse_recipients("info@example.com, ,sales@example.com"),
-            ["info@example.com", "sales@example.com"],
+            (["info@example.com", "sales@example.com"], 0),
         )
 
     def test_empty_input_raises(self):
@@ -172,10 +174,16 @@ class ParseRecipientsTest(SimpleTestCase):
             _parse_recipients("   ,  ")
         self.assertEqual(ctx.exception.code, "no_recipients")
 
-    def test_invalid_email_raises(self):
+    def test_skips_invalid_emails(self):
+        self.assertEqual(
+            _parse_recipients("info@example.com, not-an-email"),
+            (["info@example.com"], 1),
+        )
+
+    def test_only_invalid_emails_raises(self):
         with self.assertRaises(ValidationError) as ctx:
             _parse_recipients("not-an-email")
-        self.assertEqual(ctx.exception.code, "invalid")
+        self.assertEqual(ctx.exception.code, "no_recipients")
 
 
 class FormNotificationModelTest(TestCase):
@@ -296,6 +304,21 @@ class SendOneTest(TestCase):
         )
         with self.assertRaises(ValidationError):
             _send_one(n, {"form_data": {"email": "not-an-email"}})
+
+    def test_invalid_rendered_recipient_skipped_and_logged(self):
+        """One bad submitter address must not stop the staff copy."""
+        n = FormNotification.objects.create(
+            configured_form=self.cf,
+            recipients="staff@example.com, {{ form_data.email }}",
+            subject="s",
+            body="<p>x</p>",
+        )
+        with self.assertLogs(
+            "feincms3_formbuilder.notifications", level=logging.ERROR,
+        ) as captured:
+            _send_one(n, {"form_data": {"email": "not-an-email"}})
+        self.assertEqual(mail.outbox[-1].to, ["staff@example.com"])
+        self.assertIn(repr(n), captured.output[0])
 
 
 class SendFormNotificationsTest(TestCase):
