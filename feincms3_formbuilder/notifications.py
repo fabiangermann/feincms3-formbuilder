@@ -26,8 +26,7 @@ from html2text import html2text
 
 logger = logging.getLogger("feincms3_formbuilder.notifications")
 
-VARIABLE_RE = re.compile(r"\{\{.*?\}\}")
-FORM_DATA_VARIABLE_RE = re.compile(r"\{\{\s*form_data\.(\w+)")
+RECIPIENT_VARIABLE_RE = re.compile(r"\{\{\s*form_data\.(\w+)\s*\}\}")
 
 
 def validate_recipients(value):
@@ -43,13 +42,22 @@ def validate_recipients(value):
                 _("Empty email address in recipients list."),
                 code="empty_token",
             )
-        # A field validator cannot see the form's fields, so recipients
-        # containing template variables are not validated here. Checking those
-        # variables requires the project to call
-        # ``validate_notification_recipients`` from its form type's
-        # ``validate`` function.
-        if VARIABLE_RE.search(token):
+        # A field validator cannot see the form's fields, so only the syntax of
+        # a variable is checked here. Checking that it names an email field
+        # requires the project to call ``validate_notification_recipients``
+        # from its form type's ``validate`` function.
+        if RECIPIENT_VARIABLE_RE.fullmatch(token):
             continue
+        # Template syntax that EmailValidator happens to accept as an address
+        # (e.g. "{{form_data.user}}@example.com") is almost certainly a mistake.
+        if "{" in token or "}" in token:
+            raise ValidationError(
+                _(
+                    "Recipients only support email addresses and"
+                    " {{ form_data.<field_name> }}, without filters or tags."
+                ),
+                code="unsupported_template",
+            )
         validator(token)
 
 
@@ -72,9 +80,11 @@ class AbstractFormNotification(models.Model):
         return self.subject
 
 
-def _parse_recipients(rendered):
-    """Split rendered recipients into valid addresses and an invalid count.
+def _parse_recipients(value, form_data):
+    """Resolve the ``recipients`` value into valid addresses and an invalid count.
 
+    Variables are looked up in ``form_data`` directly instead of rendering a
+    template, so a submitted value containing commas cannot add recipients.
     Invalid addresses are dropped so that one bad submitter value doesn't stop
     the notification for the remaining recipients. Raises only when no valid
     recipient is left.
@@ -82,18 +92,22 @@ def _parse_recipients(rendered):
     validator = EmailValidator()
     recipients = []
     invalid_count = 0
-    for token in (t.strip() for t in rendered.split(",")):
-        if not token:
+    for token in (t.strip() for t in value.split(",")):
+        if match := RECIPIENT_VARIABLE_RE.fullmatch(token):
+            address = str(form_data.get(match[1]) or "").strip()
+        else:
+            address = token
+        if not address:
             continue
         try:
-            validator(token)
+            validator(address)
         except ValidationError:
             invalid_count += 1
         else:
-            recipients.append(token)
+            recipients.append(address)
     if not recipients:
         raise ValidationError(
-            "No recipients after rendering.", code="no_recipients",
+            "No valid recipients.", code="no_recipients",
         )
     return recipients, invalid_count
 
@@ -102,12 +116,13 @@ def _send_one(notification, context):
     text_ctx = Context(context, autoescape=False)
     html_ctx = Context(context, autoescape=True)
 
-    rendered_recipients = Template(notification.recipients).render(text_ctx)
     rendered_subject = Template(notification.subject).render(text_ctx)
     rendered_html = Template(notification.body).render(html_ctx)
     rendered_text = html2text(rendered_html)
 
-    recipients, invalid_count = _parse_recipients(rendered_recipients)
+    recipients, invalid_count = _parse_recipients(
+        notification.recipients, context.get("form_data") or {},
+    )
     if invalid_count:
         # ERROR rather than WARNING so error trackers still report the
         # dropped recipients.
@@ -137,8 +152,9 @@ def send_form_notifications(
 
     ``notifications`` is any iterable of ``AbstractFormNotification``
     subclass instances. ``context`` is a plain dict of variables made
-    available to the templates rendered for ``recipients``, ``subject``,
-    and ``body``.
+    available to the templates rendered for ``subject`` and ``body``.
+    ``recipients`` only resolves ``{{ form_data.<field_name> }}`` from
+    ``context["form_data"]``.
 
     On any per-notification failure (template error, no valid rendered
     recipient, SMTP error), logs the failure at ``ERROR`` and continues
@@ -170,8 +186,8 @@ def validate_notification_recipients(
 ):
     """Check that ``{{ form_data.<name> }}`` in recipients names an email field.
 
-    ``validate_recipients`` accepts any template variable because a field
-    validator cannot see the form's fields. Without this check, a reference to
+    ``validate_recipients`` only checks the syntax of these variables because
+    a field validator cannot see the form's fields. Without this check, a reference to
     a missing or non-email field only fails at send time, when the submitter's
     notification is silently dropped. Call it from the form type's
     ``validate`` function; the admin shows the returned errors after saving.
@@ -187,7 +203,7 @@ def validate_notification_recipients(
     }
     errors = []
     for notification in notifications:
-        for name in FORM_DATA_VARIABLE_RE.findall(notification.recipients):
+        for name in RECIPIENT_VARIABLE_RE.findall(notification.recipients):
             if name not in field_types:
                 message = _(
                     "Notification \"{notification}\": recipients refer to"

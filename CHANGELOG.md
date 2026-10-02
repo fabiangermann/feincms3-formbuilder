@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### Backwards incompatible changes
+
+- `recipients` only accepts email addresses and plain
+  `{{ form_data.<field_name> }}` variables. Filters, tags and other context
+  variables are rejected on save, and at send time such a recipient is skipped
+  and logged like an invalid address. The variables are looked up directly
+  instead of rendering a template, so a submitted value containing commas can
+  no longer add recipients. Check existing notifications for `|`, `{%` or
+  variables other than `form_data` in `recipients` before upgrading.
+
 ### Features
 
 - New `validate_notification_recipients(configured_form, renderer,

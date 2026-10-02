@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-01 13:47+0000\n"
+"POT-Creation-Date: 2026-10-01 14:18+0000\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -127,27 +127,35 @@ msgstr "Formulareinreichung"
 msgid "form submissions"
 msgstr "Formulareinreichungen"
 
-#: notifications.py:37
+#: notifications.py:36
 msgid "Recipients must not be empty."
 msgstr "Empfänger müssen angegeben werden."
 
-#: notifications.py:43
+#: notifications.py:42
 msgid "Empty email address in recipients list."
 msgstr "Leere E-Mail-Adresse in Empfängerliste."
 
-#: notifications.py:58
+#: notifications.py:54
+msgid ""
+"Recipients only support email addresses and {{ form_data.<field_name> }}, "
+"without filters or tags."
+msgstr ""
+"Empfänger unterstützen nur E-Mail-Adressen und "
+"{{ form_data.<field_name> }}, ohne Filter oder Tags."
+
+#: notifications.py:64
 msgid "recipients"
 msgstr "empfänger"
 
-#: notifications.py:60
+#: notifications.py:66
 msgid "subject"
 msgstr "betreff"
 
-#: notifications.py:61
+#: notifications.py:67
 msgid "body"
 msgstr ""
 
-#: notifications.py:62
+#: notifications.py:68
 msgid ""
 "HTML. Supports {{ form_data.<field_name> }} and any keys the project places "
 "in the notification context."
@@ -155,31 +163,31 @@ msgstr ""
 "HTML. Unterstützt {{ form_data.<field_name> }} und sämtliche Platzhalter die "
 "vom Projekt im Kontext verfügbar gemacht werden."
 
-#: notifications.py:68
+#: notifications.py:74
 msgid "form notification"
 msgstr "Formularbenachrichtigung"
 
-#: notifications.py:69
+#: notifications.py:75
 msgid "form notifications"
 msgstr "Formularbenachrichtigungen"
 
-#: notifications.py:175
+#: notifications.py:207
 #, python-brace-format
 msgid ""
 "Notification \"{notification}\": recipients refer to field '{name}', which "
 "does not exist."
 msgstr ""
-"Benachrichtigung \"{notification}\": Die Empfänger verweisen auf das "
-"Feld '{name}', das nicht existiert."
+"Benachrichtigung \"{notification}\": Die Empfänger verweisen auf das Feld "
+"'{name}', das nicht existiert."
 
-#: notifications.py:180
+#: notifications.py:212
 #, python-brace-format
 msgid ""
 "Notification \"{notification}\": recipients refer to field '{name}', which "
 "is not an email address field."
 msgstr ""
-"Benachrichtigung \"{notification}\": Die Empfänger verweisen auf das "
-"Feld '{name}', das kein E-Mail-Feld ist."
+"Benachrichtigung \"{notification}\": Die Empfänger verweisen auf das Feld "
+"'{name}', das kein E-Mail-Feld ist."
 
 #: templates/feincms3_formbuilder/form.html:8
 #: templates/feincms3_formbuilder/multistep_form.html:4

@@ -228,16 +228,16 @@ class FormNotification(AbstractFormNotification):
 
 | Field | Purpose |
 |---|---|
-| `recipients` | Comma-separated emails or a Django template variable that resolves to one (e.g. `{{ form_data.email }}`) |
+| `recipients` | Comma-separated emails and `{{ form_data.<field_name> }}` variables (e.g. `staff@example.com, {{ form_data.email }}`); no filters, tags or other variables |
 | `subject` | Plain-text subject; supports template variables |
 | `body` | HTML body; supports template variables; rendered with autoescape on |
 
 The `recipients` field is validated at save time (via `validators=[validate_recipients]` on the field):
 
 - Empty values are rejected.
-- Each comma-separated recipient must validate as an email, unless it
-  contains `{{ … }}` (the package cannot inspect what's in the project's
-  context).
+- Each comma-separated recipient must be an email address or exactly
+  `{{ form_data.<field_name> }}`. Filters, tags and other variables are
+  rejected.
 
 To check that each `{{ form_data.<name> }}` in `recipients` refers to an
 email field of the form, call `validate_notification_recipients` from your
@@ -284,9 +284,10 @@ def process_simple_form(request, form, *, configured_form):
 ```
 
 `context` is a plain dict; whatever keys you place there are available
-to the editor as Django template variables in `recipients`, `subject`,
-and `body`. The `form_data` key is the documented standard (used by the
-notification body's help text); other keys are project-specific.
+to the editor as Django template variables in `subject` and `body`. The
+`form_data` key is the documented standard (used by the notification body's
+help text and the only one `recipients` supports); other keys are
+project-specific.
 
 ### Variables for editors
 
@@ -299,7 +300,7 @@ specific identifier) is whatever the project decides to put in `context`.
 
 ### Failure handling
 
-Rendered recipients that are not valid email addresses are skipped and logged
+Recipients that don't resolve to a valid email address are skipped and logged
 at `ERROR`; the notification is still sent to the remaining recipients.
 
 `send_form_notifications` defaults to `fail_silently=True`: per-notification

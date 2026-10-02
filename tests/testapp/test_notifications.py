@@ -66,8 +66,10 @@ class ValidateRecipientsTest(SimpleTestCase):
     def test_single_variable_accepted(self):
         validate_recipients("{{ form_data.email }}")
 
-    def test_variable_with_filter_accepted(self):
-        validate_recipients("{{ form_data.email|lower }}")
+    def test_variable_with_filter_rejected(self):
+        with self.assertRaises(ValidationError) as ctx:
+            validate_recipients("{{ form_data.email|lower }}")
+        self.assertEqual(ctx.exception.code, "unsupported_template")
 
     def test_multiple_variables_accepted(self):
         validate_recipients("{{ form_data.a }}, {{ form_data.b }}")
@@ -75,8 +77,27 @@ class ValidateRecipientsTest(SimpleTestCase):
     def test_variable_mixed_with_literal_accepted(self):
         validate_recipients("info@example.com, {{ form_data.email }}")
 
-    def test_arbitrary_variable_path_accepted(self):
-        validate_recipients("{{ submission.data.contact }}")
+    def test_variable_outside_form_data_rejected(self):
+        """Only form_data variables can be checked against the form's fields."""
+        with self.assertRaises(ValidationError) as ctx:
+            validate_recipients("{{ submission.data.contact }}")
+        self.assertEqual(ctx.exception.code, "unsupported_template")
+
+    def test_tag_rejected(self):
+        with self.assertRaises(ValidationError) as ctx:
+            validate_recipients(
+                "{% if form_data.copy %}{{ form_data.email }}, {% endif %}"
+                "staff@example.com"
+            )
+        self.assertEqual(ctx.exception.code, "unsupported_template")
+
+    def test_template_syntax_accepted_by_email_validator_rejected(self):
+        """EmailValidator accepts braces, but here they are a mistake."""
+        for value in ["{{form_data.user}}@example.com", "user}}@example.com"]:
+            with self.subTest(value=value):
+                with self.assertRaises(ValidationError) as ctx:
+                    validate_recipients(value)
+                self.assertEqual(ctx.exception.code, "unsupported_template")
 
     def test_invalid_literal_mixed_with_variable_rejected(self):
         """A typo in a fixed address would otherwise break every send."""
@@ -143,47 +164,84 @@ class AbstractFormNotificationFullCleanTest(SimpleTestCase):
 class ParseRecipientsTest(SimpleTestCase):
     def test_single_email(self):
         self.assertEqual(
-            _parse_recipients("info@example.com"), (["info@example.com"], 0),
+            _parse_recipients("info@example.com", {}), (["info@example.com"], 0),
         )
 
     def test_multiple_emails(self):
         self.assertEqual(
-            _parse_recipients("info@example.com, sales@example.com"),
+            _parse_recipients("info@example.com, sales@example.com", {}),
             (["info@example.com", "sales@example.com"], 0),
         )
 
     def test_strips_whitespace(self):
         self.assertEqual(
-            _parse_recipients("  info@example.com  ,  sales@example.com  "),
+            _parse_recipients("  info@example.com  ,  sales@example.com  ", {}),
             (["info@example.com", "sales@example.com"], 0),
         )
 
     def test_skips_empty_tokens(self):
         self.assertEqual(
-            _parse_recipients("info@example.com, ,sales@example.com"),
+            _parse_recipients("info@example.com, ,sales@example.com", {}),
             (["info@example.com", "sales@example.com"], 0),
         )
 
     def test_empty_input_raises(self):
         with self.assertRaises(ValidationError) as ctx:
-            _parse_recipients("")
+            _parse_recipients("", {})
         self.assertEqual(ctx.exception.code, "no_recipients")
 
     def test_only_whitespace_raises(self):
         with self.assertRaises(ValidationError) as ctx:
-            _parse_recipients("   ,  ")
+            _parse_recipients("   ,  ", {})
         self.assertEqual(ctx.exception.code, "no_recipients")
 
     def test_skips_invalid_emails(self):
         self.assertEqual(
-            _parse_recipients("info@example.com, not-an-email"),
+            _parse_recipients("info@example.com, not-an-email", {}),
             (["info@example.com"], 1),
         )
 
     def test_only_invalid_emails_raises(self):
         with self.assertRaises(ValidationError) as ctx:
-            _parse_recipients("not-an-email")
+            _parse_recipients("not-an-email", {})
         self.assertEqual(ctx.exception.code, "no_recipients")
+
+    def test_resolves_form_data_variable(self):
+        self.assertEqual(
+            _parse_recipients(
+                "{{ form_data.email }}", {"email": "alice@example.com"},
+            ),
+            (["alice@example.com"], 0),
+        )
+
+    def test_empty_form_data_value_skipped(self):
+        """An optional email field left blank is not an error."""
+        self.assertEqual(
+            _parse_recipients(
+                "staff@example.com, {{ form_data.email }}", {"email": ""},
+            ),
+            (["staff@example.com"], 0),
+        )
+
+    def test_comma_in_submitted_value_not_split(self):
+        """Submitted values must not be able to add recipients."""
+        self.assertEqual(
+            _parse_recipients(
+                "staff@example.com, {{ form_data.email }}",
+                {"email": "a@example.com, b@example.com"},
+            ),
+            (["staff@example.com"], 1),
+        )
+
+    def test_unsupported_template_counted_as_invalid(self):
+        """Values saved before tags and filters were rejected still send."""
+        self.assertEqual(
+            _parse_recipients(
+                "staff@example.com, {{ form_data.email|lower }}",
+                {"email": "alice@example.com"},
+            ),
+            (["staff@example.com"], 1),
+        )
 
 
 class FormNotificationModelTest(TestCase):
@@ -474,7 +532,7 @@ class ValidateNotificationRecipientsTest(TestCase):
         )
 
     def test_text_field_is_error(self):
-        errors = self._validate("staff@example.com, {{ form_data.name|lower }}")
+        errors = self._validate("staff@example.com, {{ form_data.name }}")
         self.assertEqual(len(errors), 1)
         self.assertIsInstance(errors[0], validation.Error)
         self.assertIn("'name'", errors[0].message)
