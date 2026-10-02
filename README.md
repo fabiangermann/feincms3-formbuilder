@@ -261,7 +261,9 @@ def validate_configured_form(configured_form):
 ```
 
 Only `SimpleFieldBase.Type.EMAIL` counts as an email field unless you pass
-`email_field_types`. A custom field plugin's type is its lowercased class name.
+`email_field_types`. The list replaces the default, so include
+`SimpleFieldBase.Type.EMAIL` alongside your custom types. A custom field
+plugin's type is its lowercased class name.
 
 ### Sending notifications from `process()`
 

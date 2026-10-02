@@ -187,10 +187,11 @@ def validate_notification_recipients(
     """Check that ``{{ form_data.<name> }}`` in recipients names an email field.
 
     ``validate_recipients`` only checks the syntax of these variables because
-    a field validator cannot see the form's fields. Without this check, a reference to
-    a missing or non-email field only fails at send time, when the submitter's
-    notification is silently dropped. Call it from the form type's
-    ``validate`` function; the admin shows the returned errors after saving.
+    a field validator cannot see the form's fields. Without this check, a
+    reference to a missing or non-email field only shows up at send time, when
+    the recipient is skipped and the submitter gets no notification. Call it
+    from the form type's ``validate`` function; the admin shows the returned
+    errors after saving.
 
     ``email_field_types`` lists the field ``type`` values that count as email
     fields. Custom field plugins have their lowercased class name as type.

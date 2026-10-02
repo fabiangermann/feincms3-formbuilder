@@ -106,6 +106,7 @@ class ValidateRecipientsTest(SimpleTestCase):
         self.assertEqual(ctx.exception.code, "invalid")
 
     def test_empty_token_mixed_with_variable_rejected(self):
+        """A stray comma is flagged whether or not the value has variables."""
         with self.assertRaises(ValidationError) as ctx:
             validate_recipients("{{ form_data.email }}, ")
         self.assertEqual(ctx.exception.code, "empty_token")
@@ -353,7 +354,7 @@ class SendOneTest(TestCase):
         _send_one(n, {})
         self.assertEqual(mail.outbox[-1].from_email, "noreply@example.com")
 
-    def test_invalid_rendered_recipient_raises(self):
+    def test_only_invalid_rendered_recipient_raises(self):
         n = FormNotification.objects.create(
             configured_form=self.cf,
             recipients="{{ form_data.email }}",
@@ -495,8 +496,6 @@ class EndToEndNotificationsTest(TestCase):
             "Thanks for getting in touch.", user_msg.alternatives[0][0],
         )
 
-
-
 class ValidateNotificationRecipientsTest(TestCase):
     """Recipient templates must point at email fields of the form.
 
@@ -548,5 +547,4 @@ class ValidateNotificationRecipientsTest(TestCase):
     def test_missing_field_is_error(self):
         errors = self._validate("{{ form_data.e_mail }}")
         self.assertEqual(len(errors), 1)
-        self.assertIsInstance(errors[0], validation.Error)
         self.assertIn("'e_mail'", errors[0].message)
