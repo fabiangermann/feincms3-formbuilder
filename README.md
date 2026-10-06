@@ -419,11 +419,10 @@ def validate_configured_form(configured_form):
 
 ## Conditional fields
 
-A *condition* is the rule configured on a field: the name of a controlling
-field plus the values that satisfy it. The *conditionals* are the fields that
-have one. A conditional is shown, and required if it is configured as
-required, only when the answer to the controlling field is one of the
-configured values. Otherwise its value is not stored.
+A field can be made conditional on a dropdown or radio field, the
+*controlling field*: it is shown, and required if configured as required,
+only when the controlling field is answered with one of the configured
+values. Otherwise its value is not stored.
 
 ### Setup
 
@@ -469,16 +468,17 @@ field:
 Limits:
 
 - Only dropdown and radio fields can control other fields. A condition naming
-  any other field type in the same form never matches, and the conditional is
-  never shown.
+  any other field type in the same form never matches, and the conditional
+  field is never shown.
 - A controlling field must not itself be conditional.
 - A field has at most one condition.
 
 ### Without JavaScript
 
-The conditional stays hidden until the user submits the form. The server then
-sees the answer to the controlling field and returns the form with the
-conditional visible and a "required" error on it. Nothing is silently dropped.
+The conditional field stays hidden until the user submits the form. The
+server then sees the answer to the controlling field and returns the form with
+the conditional field visible and a "required" error on it. Nothing is
+silently dropped.
 
 ### Custom scripts
 
