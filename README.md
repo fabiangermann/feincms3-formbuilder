@@ -457,12 +457,14 @@ Include the script on every page showing the form:
 
 ### Configuring a condition
 
-Editors fill in two fields in the "Advanced" fieldset of the conditional:
+Editors fill in two fields in the "Advanced" fieldset of the conditional
+field:
 
 - `show_when_field` is the *name* of the controlling field.
-- `show_when_values` takes one value per line. A line may be the label, the
-  value, or a whole `value | Label` line copied from the controlling field's
-  `choices`.
+- `show_when_values` takes one choice key of the controlling field per line.
+  The key is the value the browser submits:
+  - for a `choices` line without `|`, the slugified label (`Phone` → `phone`)
+  - for a `key | Label` line, the key
 
 Limits:
 

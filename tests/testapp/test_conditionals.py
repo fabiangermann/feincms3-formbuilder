@@ -25,16 +25,13 @@ from testapp.models import (
 
 
 class ShowWhenValuesListTest(SimpleTestCase):
-    """The parsing must accept whatever an editor plausibly copies in.
+    """The keys are compared verbatim with the submitted answer, so stray
+    whitespace or a blank line in the textarea must not produce a key that
+    never matches or, worse, an empty key that matches an unanswered field."""
 
-    Editors see ``choices`` right next to ``show_when_values``, so they type
-    the label, the key, or a whole ``key | Label`` line. All three have to
-    reduce to the key the browser actually submits.
-    """
-
-    def test_label_key_and_pipe_lines_all_reduce_to_the_key(self):
-        field = SimpleField(show_when_values="Phone\nsms\nemail | E-Mail")
-        self.assertEqual(field.show_when_values_list, ["phone", "sms", "email"])
+    def test_lines_are_stripped(self):
+        field = SimpleField(show_when_values="  phone \nsms\t")
+        self.assertEqual(field.show_when_values_list, ["phone", "sms"])
 
     def test_blank_lines_are_ignored(self):
         field = SimpleField(show_when_values="phone\n\n   \nsms\n")
@@ -81,9 +78,9 @@ class GetConditionTest(SimpleTestCase):
 
         self.assertIsNone(_get_condition(Lookalike()))
 
-    def test_condition_is_the_name_and_the_parsed_keys(self):
+    def test_condition_is_the_name_and_the_keys(self):
         plugin = SimpleField(
-            show_when_field="contact_pref", show_when_values="Phone\nsms"
+            show_when_field="contact_pref", show_when_values="phone\nsms"
         )
         self.assertEqual(_get_condition(plugin), ("contact_pref", ["phone", "sms"]))
 

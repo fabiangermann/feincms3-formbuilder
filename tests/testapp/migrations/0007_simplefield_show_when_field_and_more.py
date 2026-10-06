@@ -18,6 +18,6 @@ class Migration(migrations.Migration):
         migrations.AddField(
             model_name='simplefield',
             name='show_when_values',
-            field=models.TextField(blank=True, help_text="One value per line. This field is shown when the controlling field's answer is one of them. Enter the label, the value, or a line copied from the controlling field's choices.", verbose_name='show when values'),
+            field=models.TextField(blank=True, help_text="One choice value (key) of the controlling field per line. This field is shown when the controlling field's answer is one of them.", verbose_name='show when values'),
         ),
     ]
