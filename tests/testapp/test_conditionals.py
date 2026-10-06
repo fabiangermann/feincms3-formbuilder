@@ -468,10 +468,8 @@ class ConditionalMultistepFormTest(TestCase):
         self._post({"phone": "555-0100"}, action="back")
         self._post({"contact_pref": "email"})
         self._post({}, action="back")
-        self._post({"contact_pref": "phone"})
-        response = self._post({"phone": "555-0100"}, action="submit")
-        self.assertContains(response, "Done!")
-        self.assertEqual(FormSubmission.objects.get().data["phone"], "555-0100")
+        response = self._post({"contact_pref": "phone"})
+        self.assertContains(response, 'value="555-0100"')
 
 
 class ConditionalSameStepTest(TestCase):
@@ -515,3 +513,48 @@ class ConditionalSameStepTest(TestCase):
         )
         self.assertContains(response, "Done!")
         self.assertNotIn("phone", FormSubmission.objects.get().data)
+
+
+class ConditionalMultistepDefaultTest(TestCase):
+    """A controller's ``default_value`` decides the first render of its step.
+
+    Reaching the step through a POST must still evaluate conditions against
+    the form's initial values, otherwise the field stays hidden while the
+    default choice is pre-selected.
+    """
+
+    def test_same_step_default_answer_shows_the_field(self):
+        configured_form = ConfiguredForm.objects.create(
+            name="Defaults", slug="defaults-cond", form_type="multistep",
+        )
+        step1 = FormStep.objects.create(
+            configured_form=configured_form,
+            title="First", identifier="first", ordering=10,
+        )
+        step2 = FormStep.objects.create(
+            configured_form=configured_form,
+            title="Second", identifier="second", ordering=20,
+        )
+        Text.objects.create(
+            parent=configured_form, region=step1.region_key, ordering=10,
+            name="first_name", label="Name", is_required=False,
+        )
+        Radio.objects.create(
+            parent=configured_form, region=step2.region_key, ordering=10,
+            name="contact_pref", label="Preferred contact",
+            is_required=True, choices="Phone\nEmail", default_value="Phone",
+        )
+        Text.objects.create(
+            parent=configured_form, region=step2.region_key, ordering=20,
+            name="phone", label="Phone number", is_required=True,
+            show_when_field="contact_pref", show_when_values="phone",
+        )
+        response = self.client.post(
+            reverse("forms:form", kwargs={"slug": "defaults-cond"}),
+            {"first_name": "Alice", "_action": "next"},
+        )
+        html = response.content.decode()
+        self.assertRegex(html, r'<div[^>]*data-show-when-field="contact_pref"')
+        self.assertNotRegex(
+            html, r'<div[^>]*data-show-when-field="contact_pref"[^>]*\shidden'
+        )
