@@ -9,9 +9,16 @@
 (function () {
   "use strict";
 
+  /*
+   * The controlling field's answer as the server reads it, "" when unanswered,
+   * or null when the field is not in this form and the server's decision
+   * stands. The name is editor-typed free text, hence CSS.escape: a quote or
+   * backslash would otherwise make the selector throw and stop every field.
+   */
   function controllingValue(form, name) {
+    const escaped = CSS.escape(name);
     const inputs = form.querySelectorAll(
-      'select[name="' + name + '"], input[type="radio"][name="' + name + '"]'
+      'select[name="' + escaped + '"], input[type="radio"][name="' + escaped + '"]'
     );
     // Not on this page (another step): the server already decided, leave it.
     if (!inputs.length) return null;
@@ -22,6 +29,11 @@
     return "";
   }
 
+  /*
+   * Bring one conditional in line with the current answer, toggling the
+   * inputs as well as the wrapper: a hidden required input would block the
+   * browser's submit, and a disabled one keeps its value from being sent.
+   */
   function apply(wrapper) {
     const form = wrapper.closest("form");
     if (!form) return;
@@ -32,36 +44,34 @@
     let values;
     try {
       values = JSON.parse(wrapper.dataset.showWhenValues || "[]");
-    } catch (e) {
+    } catch {
       return;
     }
     const active = values.indexOf(value) !== -1;
 
     wrapper.hidden = !active;
     for (const input of wrapper.querySelectorAll("input, select, textarea")) {
-      if (active) {
-        input.disabled = false;
-        if (input.dataset.required !== undefined) {
-          input.required = true;
-          delete input.dataset.required;
-        }
-      } else {
-        // Remember "required" so revealing the field restores the browser's
-        // own validation; a hidden required input would block submission.
-        if (input.required) {
-          input.dataset.required = "true";
-          input.required = false;
-        }
-        input.disabled = true;
-      }
+      input.required = active && "requiredIfActive" in input.dataset;
+      input.disabled = !active;
     }
   }
 
+  /*
+   * The initial pass over every conditional on the page, which may hold
+   * several forms.
+   */
   function applyAll() {
     document.querySelectorAll("[data-show-when-field]").forEach(apply);
   }
 
-  document.addEventListener("change", applyAll);
+  // Only the conditionals controlled by the changed input need re-evaluating.
+  document.addEventListener("change", (event) => {
+    const input = event.target;
+    if (!input.form || !input.name) return;
+    input.form
+      .querySelectorAll('[data-show-when-field="' + CSS.escape(input.name) + '"]')
+      .forEach(apply);
+  });
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", applyAll);
   } else {

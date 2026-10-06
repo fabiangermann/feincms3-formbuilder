@@ -1,3 +1,4 @@
+from django import forms
 from django.http import QueryDict
 from django.template import Context
 from django.test import SimpleTestCase, TestCase
@@ -15,6 +16,7 @@ from feincms3_formbuilder.conditionals import (
 from feincms3_formbuilder.models import ConditionalFieldMixin
 from feincms3_formbuilder.renderer import render_form_field
 from testapp.models import (
+    CheckboxSelectMultiple,
     ConfiguredForm,
     FormSubmission,
     Radio,
@@ -181,17 +183,30 @@ class ConditionalFormBuildingTest(ConditionalFormTestCase):
         self.assertTrue(form.is_valid())
         self.assertNotIn("phone", form.cleaned_data)
 
-    def test_inactive_inputs_are_disabled_and_remember_required(self):
-        """``data-required`` is what lets the script restore native validation."""
+    def test_inactive_inputs_are_disabled_and_marked_required_if_active(self):
+        """The marker is what lets the script restore native validation."""
         form = self._form({"contact_pref": "email"})
         attrs = form.fields["phone"].widget.attrs
         self.assertTrue(attrs["disabled"])
-        self.assertTrue(attrs["data-required"])
+        self.assertTrue(attrs["data-required-if-active"])
 
-    def test_active_field_carries_no_condition_attributes(self):
+    def test_active_required_field_is_enabled_and_carries_the_marker(self):
+        """The script needs the marker on an initially active field too, or
+        hiding and revealing it again would lose ``required``."""
         form = self._form({"contact_pref": "phone"})
-        self.assertNotIn("disabled", form.fields["phone"].widget.attrs)
-        self.assertNotIn("data-required", form.fields["phone"].widget.attrs)
+        attrs = form.fields["phone"].widget.attrs
+        self.assertNotIn("disabled", attrs)
+        self.assertTrue(attrs["data-required-if-active"])
+
+    def test_form_without_required_attribute_gets_no_marker(self):
+        """A form class that switches off ``required`` must not get it back
+        from the script once the field is revealed."""
+
+        class NoRequiredAttributeForm(forms.Form):
+            use_required_attribute = False
+
+        form = self._form({"contact_pref": "email"}, form_class=NoRequiredAttributeForm)
+        self.assertNotIn("data-required-if-active", form.fields["phone"].widget.attrs)
 
     def test_unbound_form_falls_back_to_initial(self):
         """A controlling select with a default value is answered before the
@@ -272,6 +287,24 @@ class RenderFormFieldTest(ConditionalFormTestCase):
         html = self._render(self.control, {"contact_pref": "phone"})
         self.assertNotIn("data-show-when", html)
         self.assertNotRegex(html, r"\shidden")
+
+    def test_inactive_required_input_carries_the_marker(self):
+        """The script turns the marker back into ``required`` on reveal."""
+        html = self._render(self.conditional, {"contact_pref": "email"})
+        self.assertRegex(html, r"<input[^>]*\sdata-required-if-active")
+
+    def test_required_checkboxes_carry_no_marker(self):
+        """Django never renders ``required`` on a multi-checkbox; setting it
+        on every box would make the browser demand that all are ticked."""
+        topics = CheckboxSelectMultiple.objects.create(
+            parent=self.configured_form, region="form", ordering=30,
+            name="topics", label="Topics", is_required=True, choices="A\nB",
+            show_when_field="contact_pref", show_when_values="phone",
+        )
+        self.plugins.append(topics)
+        html = self._render(topics, {"contact_pref": "phone"})
+        self.assertRegex(html, r'<input[^>]*type="checkbox"')
+        self.assertNotIn("data-required-if-active", html)
 
 
 class ConditionalSimpleFormTest(TestCase):

@@ -495,13 +495,16 @@ A custom renderer gets the same three values from
 `condition_context(form, plugin)`, importable from
 `feincms3_formbuilder.conditionals`.
 
+`data-required-if-active` marks the inputs that are required while the field
+is active; a script sets `required` from it.
+
 To replace `conditionals.js`, your script must do the following whenever the
-controlling field changes, because the server's handling of `required`
-depends on it:
+controlling field changes:
 
 - Toggle `hidden` on the wrapper.
 - Toggle `disabled` on the inputs inside it.
-- Move `required` to `data-required` when hiding, and back when showing.
+- Set `required` on an input exactly when the field is active and the input
+  carries `data-required-if-active`.
 
 ### Notifications
 

@@ -150,17 +150,26 @@ def create_form_with_conditionals(
             "active": active,
         }
 
-        if active:
-            continue
-
         # A plugin may contribute several form fields; the condition applies
         # to all of them.
         for field_name in form.get_form_fields(plugin):
-            resolved.inactive.add(field_name)
             field = form.fields[field_name]
-            if field.required:
-                field.widget.attrs["data-required"] = True
-                field.required = False
+            # Only where Django would render the HTML ``required``: it never
+            # does on multiple checkboxes, and a script setting it there would
+            # make the browser demand every box. Not
+            # ``BoundField.build_widget_attrs()``: it reads ``errors`` and so
+            # validates the form before it is set up.
+            if (
+                field.required
+                and form.use_required_attribute
+                and field.widget.use_required_attribute(form[field_name].initial)
+            ):
+                field.widget.attrs["data-required-if-active"] = True
+            if active:
+                continue
+
+            resolved.inactive.add(field_name)
+            field.required = False
             # Not ``field.disabled``: that makes Django ignore submitted data in
             # favour of initial, which breaks the no-JavaScript round-trip.
             field.widget.attrs["disabled"] = True
