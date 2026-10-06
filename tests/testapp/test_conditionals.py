@@ -61,6 +61,9 @@ class ConditionalAdminFieldsTest(TestCase):
 
 
 class GetConditionTest(SimpleTestCase):
+    """Every reader of a condition goes through this, so it alone decides
+    which plugins count as conditionals."""
+
     def test_no_controlling_field_means_unconditional(self):
         self.assertIsNone(_get_condition(SimpleField(show_when_values="phone")))
 
@@ -91,6 +94,9 @@ class GetConditionTest(SimpleTestCase):
 
 
 class ControllingValueTest(SimpleTestCase):
+    """POST, session and merged data must yield the same answer, or the
+    server and the steps would disagree on whether a field is active."""
+
     def test_missing_key_reads_as_unanswered(self):
         self.assertEqual(_controlling_value("contact_pref", {}), "")
 
@@ -107,6 +113,9 @@ class ControllingValueTest(SimpleTestCase):
 
 
 class IsActiveTest(SimpleTestCase):
+    """The one membership rule the whole feature rests on; the script copies
+    it, so it has to stay this simple."""
+
     condition = ("contact_pref", ["phone", "sms"])
 
     def test_unconditional_field_is_always_active(self):
@@ -150,6 +159,8 @@ class ConditionalFormTestCase(TestCase):
         self.plugins = [self.control, self.conditional]
 
     def _form(self, data=None, **kwargs):
+        """Build the fixture's form; ``data=None`` gives an unbound form so the
+        initial-value fallback can be tested too."""
         return create_form_with_conditionals(
             self.plugins,
             form_kwargs={"data": data} if data is not None else {},
@@ -255,6 +266,9 @@ class ConditionalFormBuildingTest(ConditionalFormTestCase):
 
 
 class ConditionContextTest(ConditionalFormTestCase):
+    """Projects with their own renderer call this on every plugin, so it must
+    answer safely for plugins and forms that have no condition."""
+
     def test_unconditional_plugin_has_no_context(self):
         form = self._form({"contact_pref": "phone"})
         self.assertEqual(condition_context(form, self.control), {})
@@ -269,6 +283,8 @@ class RenderFormFieldTest(ConditionalFormTestCase):
     """The page must show what the server decided, not wait for JavaScript."""
 
     def _render(self, plugin, data):
+        """Render through the shipped renderer and template, which is what a
+        project gets without overriding anything."""
         form = self._form(data)
         return render_form_field(plugin, Context({"form": form}))
 
@@ -586,12 +602,15 @@ class ValidateConditionalsTest(TestCase):
         )
 
     def _conditional(self, **kwargs):
+        """Save a text field next to the radio control; the check reads the
+        saved plugins, not instances in memory."""
         return Text.objects.create(
             parent=self.configured_form, region="form", ordering=20,
             name="phone", label="Phone number", **kwargs,
         )
 
     def _errors(self):
+        """The messages as the admin shows them, so tests can assert on text."""
         return [
             str(error)
             for error in validate_conditionals(self.configured_form, renderer)
