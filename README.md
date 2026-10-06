@@ -417,6 +417,97 @@ def validate_configured_form(configured_form):
 
 ---
 
+## Conditional fields
+
+A *condition* is the rule configured on a field: the name of a controlling
+field plus the values that satisfy it. The *conditionals* are the fields that
+have one. A conditional is shown, and required if it is configured as
+required, only when the answer to the controlling field is one of the
+configured values. Otherwise its value is not stored.
+
+### Setup
+
+Add `ConditionalFieldMixin` to your concrete `SimpleField` and generate the
+migration:
+
+```python
+from feincms3_formbuilder.models import ConditionalFieldMixin
+
+
+class SimpleField(ConditionalFieldMixin, forms_models.SimpleFieldBase, ConfiguredFormPlugin):
+    class Meta:
+        verbose_name = "form field"
+        verbose_name_plural = "form fields"
+```
+
+```bash
+python manage.py makemigrations myapp
+```
+
+`simple_field_inlines()` adds `show_when_field` and `show_when_values` to the
+"Advanced" fieldset of every inline on its own. If you build your inlines
+another way, append both names to `advanced_fields` yourself.
+
+Include the script on every page showing the form:
+
+```html
+{% load static %}
+<script src="{% static 'feincms3_formbuilder/conditionals.js' %}" defer></script>
+```
+
+### Configuring a condition
+
+Editors fill in two fields in the "Advanced" fieldset of the conditional:
+
+- `show_when_field` is the *name* of the controlling field.
+- `show_when_values` takes one value per line. A line may be the label, the
+  value, or a whole `value | Label` line copied from the controlling field's
+  `choices`.
+
+Limits:
+
+- Only dropdown and radio fields can control other fields. A condition naming
+  any other field type in the same form never matches, and the conditional is
+  never shown.
+- A controlling field must not itself be conditional.
+- A field has at most one condition.
+
+### Without JavaScript
+
+The conditional stays hidden until the user submits the form. The server then
+sees the answer to the controlling field and returns the form with the
+conditional visible and a "required" error on it. Nothing is silently dropped.
+
+### Custom scripts
+
+The server renders each condition as data attributes on the field's wrapper
+element, with `hidden` set while the condition is not met:
+
+```html
+<div data-show-when-field="contact_pref" data-show-when-values='["phone","sms"]' hidden>
+  …field…
+</div>
+```
+
+A custom renderer gets the same three values from
+`condition_context(form, plugin)`, importable from
+`feincms3_formbuilder.conditionals`.
+
+To replace `conditionals.js`, your script must do the following whenever the
+controlling field changes, because the server's handling of `required`
+depends on it:
+
+- Toggle `hidden` on the wrapper.
+- Toggle `disabled` on the inputs inside it.
+- Move `required` to `data-required` when hiding, and back when showing.
+
+### Notifications
+
+A recipient written as `{{ form_data.<name> }}` that names a field which is
+not active is skipped, exactly like an optional email field left empty.
+
+---
+
 ## Renderer
 
 Call `create_form_renderer()` with your field-producing plugin models as

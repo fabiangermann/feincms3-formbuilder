@@ -1,5 +1,21 @@
 # Changelog
 
+## Next version
+
+### Features
+
+- New `ConditionalFieldMixin` for the project's `SimpleField`, adding
+  `show_when_field` and `show_when_values`. A field carrying a condition is
+  only shown, only required and only stored when the controlling dropdown or
+  radio field's answer is one of the configured values. The server decides and
+  renders that decision, so the feature degrades to one extra round-trip
+  without JavaScript rather than failing. Requires a migration in the project;
+  see the README.
+- New `feincms3_formbuilder/static/feincms3_formbuilder/conditionals.js`,
+  included with one `<script>` tag, which keeps the rendered state in sync
+  while the page is open. Projects may use the documented data attribute
+  contract with their own script instead.
+
 ## 0.4.0
 
 ### Backwards incompatible changes
