@@ -453,6 +453,13 @@ class ConditionalMultistepFormTest(TestCase):
         self.assertNotContains(response, "Done!")
         self.assertEqual(FormSubmission.objects.count(), 0)
 
+    def test_step_post_shows_the_error_on_the_conditional(self):
+        """The step's POST lacks the earlier answer, so only the session can
+        tell the step form that the field is required and show the error."""
+        self._post({"contact_pref": "phone"})
+        response = self._post({"note": "hi"}, action="submit")
+        self.assertContains(response, "This field is required.")
+
     def test_going_back_and_changing_the_answer_drops_the_stale_value(self):
         """The value was valid when entered; a change on another step makes it
         inactive, and only a pass over every step before ``process`` sees that."""
@@ -604,7 +611,9 @@ class ValidateConditionalsTest(TestCase):
 
     def test_self_reference_is_reported(self):
         self._conditional(show_when_field="phone", show_when_values="phone")
-        self.assertEqual(len(self._errors()), 1)
+        errors = self._errors()
+        self.assertEqual(len(errors), 1)
+        self.assertIn("depend on itself", errors[0])
 
     def test_unsupported_controlling_type_is_reported(self):
         Text.objects.create(
