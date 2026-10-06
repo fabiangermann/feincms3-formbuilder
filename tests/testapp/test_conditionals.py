@@ -656,6 +656,11 @@ class ValidateConditionalsTest(TestCase):
         self._conditional(show_when_field="contact_pref", show_when_values="fax")
         self.assertIn("fax", self._errors()[0])
 
+    def test_unknown_value_message_lists_the_valid_keys(self):
+        """An editor who typed the label needs to see which keys to use."""
+        self._conditional(show_when_field="contact_pref", show_when_values="Phone")
+        self.assertIn("Valid values: phone, email.", self._errors()[0])
+
     def test_controlling_field_on_a_later_step_is_reported(self):
         """At runtime a forward reference reads as "no answer", so the field is
         silently never shown. Only this check can tell the editor."""

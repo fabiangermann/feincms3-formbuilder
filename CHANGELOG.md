@@ -23,8 +23,11 @@
 - New `validate_conditionals(configured_form, renderer)` for the form type's
   `validate` function. It reports conditions naming a field that doesn't
   exist, isn't a dropdown or radio, is itself conditional, or is asked on a
-  later step, as well as empty or unknown value lists. Projects must add the
-  call to their `validate` function (see README).
+  later step, as well as empty value lists and values the controlling field
+  doesn't offer, listing the valid ones. The admin shows these as errors after
+  saving without blocking the save. Projects whose editors configure
+  conditions must add the call to their `validate` function (see README);
+  otherwise a mistyped value silently hides the field.
 
 ## 0.4.0
 

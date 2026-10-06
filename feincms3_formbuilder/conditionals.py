@@ -284,18 +284,21 @@ def validate_conditionals(configured_form, renderer):
             )
             continue
 
-        choice_keys = {key for key, _label in control.get_choices()}
+        choice_keys = [key for key, _label in control.get_choices()]
         if unknown := [value for value in values if value not in choice_keys]:
+            # Listing the keys matters because editors tend to type the label
+            # (``Phone``) where the submitted key (``phone``) is needed.
             errors.append(
                 Error(
                     _(
                         "Field '%(field)s' is shown for %(values)s, which"
-                        " '%(control)s' doesn't offer."
+                        " '%(control)s' doesn't offer. Valid values: %(keys)s."
                     )
                     % {
                         "field": plugin.name,
                         "control": name,
                         "values": ", ".join(f"'{value}'" for value in sorted(unknown)),
+                        "keys": ", ".join(choice_keys),
                     }
                 )
             )

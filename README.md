@@ -536,10 +536,11 @@ controlling field changes:
 
 ### Editor-time check
 
-At runtime a misconfigured condition only means the field is never shown, with
-nothing to tell the editor why. Add `validate_conditionals` to the list your
-form type's `validate` function returns (see [Validation](#validation)) to
-report these problems:
+Projects whose editors configure conditions need this check. At runtime a
+misconfigured condition, such as a mistyped value, only means that the field
+is silently never shown, with nothing to tell the editor why. Add
+`validate_conditionals` to the list your form type's `validate` function
+returns (see [Validation](#validation)) to report these problems:
 
 ```python
 # myapp/validation.py
@@ -567,11 +568,11 @@ It reports a condition that:
 - names a controlling field that is itself conditional,
 - names a controlling field on a later step,
 - has a controlling field but no values,
-- lists a value the controlling field does not offer.
+- lists a value the controlling field does not offer. The message lists the
+  values the controlling field does offer.
 
-The admin shows these as messages after saving. They warn and do not block
-saving. A controlling field on a later step is the one problem with no
-symptom at runtime, because the field is simply never shown.
+The admin shows these as errors after saving. Saving is not blocked, so the
+editor has to fix the condition and save again.
 
 ### Notifications
 
