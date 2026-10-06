@@ -537,17 +537,24 @@ controlling field changes:
 ### Editor-time check
 
 At runtime a misconfigured condition only means the field is never shown, with
-nothing to tell the editor why. Add `validate_conditionals` to your form type's
-`validate` function to report these problems:
+nothing to tell the editor why. Add `validate_conditionals` to the list your
+form type's `validate` function returns (see [Validation](#validation)) to
+report these problems:
 
 ```python
 # myapp/validation.py
 from feincms3_formbuilder.conditionals import validate_conditionals
+from feincms3_formbuilder.models import validate_with_renderer
+from feincms3_formbuilder.notifications import validate_notification_recipients
+from myapp.renderer import renderer
 
 
 def validate_configured_form(configured_form):
     return [
         *validate_with_renderer(configured_form, renderer),
+        *validate_notification_recipients(
+            configured_form, renderer, configured_form.notifications.all(),
+        ),
         *validate_conditionals(configured_form, renderer),
     ]
 ```
