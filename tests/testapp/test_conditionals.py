@@ -1,6 +1,7 @@
 from django.http import QueryDict
 from django.template import Context
 from django.test import SimpleTestCase, TestCase
+from django.urls import reverse
 from feincms3_forms.renderer import create_form
 
 from feincms3_formbuilder.admin import simple_field_inlines
@@ -13,7 +14,14 @@ from feincms3_formbuilder.conditionals import (
 )
 from feincms3_formbuilder.models import ConditionalFieldMixin
 from feincms3_formbuilder.renderer import render_form_field
-from testapp.models import ConfiguredForm, Radio, SimpleField, Text
+from testapp.models import (
+    ConfiguredForm,
+    FormSubmission,
+    Radio,
+    RichText,
+    SimpleField,
+    Text,
+)
 
 
 class ShowWhenValuesListTest(SimpleTestCase):
@@ -256,3 +264,76 @@ class RenderFormFieldTest(ConditionalFormTestCase):
         html = self._render(self.control, {"contact_pref": "phone"})
         self.assertNotIn("data-show-when", html)
         self.assertNotRegex(html, r"\shidden")
+
+
+class ConditionalSimpleFormTest(TestCase):
+    """Without the view wiring the conditions exist but never take effect."""
+
+    def setUp(self):
+        self.configured_form = ConfiguredForm.objects.create(
+            name="Contact",
+            slug="contact-simple",
+            form_type="simple",
+        )
+        Radio.objects.create(
+            parent=self.configured_form,
+            region="form",
+            ordering=10,
+            name="contact_pref",
+            label="Preferred contact",
+            is_required=True,
+            choices="Phone\nEmail",
+        )
+        Text.objects.create(
+            parent=self.configured_form,
+            region="form",
+            ordering=20,
+            name="phone",
+            label="Phone number",
+            is_required=True,
+            show_when_field="contact_pref",
+            show_when_values="phone",
+        )
+        RichText.objects.create(
+            parent=self.configured_form,
+            region="success",
+            ordering=10,
+            text="<p>Thanks!</p>",
+        )
+        self.url = reverse("forms:form", kwargs={"slug": "contact-simple"})
+
+    def test_first_get_hides_the_conditional_field(self):
+        """Targets the wrapper: csrf_token inputs make a bare "hidden" match always."""
+        response = self.client.get(self.url)
+        self.assertRegex(
+            response.content.decode(),
+            r'<div[^>]*data-show-when-field="contact_pref"[^>]*\shidden',
+        )
+
+    def test_matching_answer_without_the_value_is_rejected(self):
+        """The no-JavaScript round-trip: the server asks for the field it
+        would have revealed, instead of accepting a silently missing answer."""
+        response = self.client.post(self.url, {"contact_pref": "phone"})
+        self.assertNotContains(response, "Thanks!")
+        self.assertEqual(FormSubmission.objects.count(), 0)
+        self.assertContains(response, "This field is required.")
+
+    def test_matching_answer_stores_the_value(self):
+        response = self.client.post(
+            self.url, {"contact_pref": "phone", "phone": "555-0100"}
+        )
+        self.assertContains(response, "Thanks!")
+        self.assertEqual(FormSubmission.objects.get().data["phone"], "555-0100")
+
+    def test_other_answer_submits_without_the_field(self):
+        response = self.client.post(self.url, {"contact_pref": "email"})
+        self.assertContains(response, "Thanks!")
+        self.assertNotIn("phone", FormSubmission.objects.get().data)
+
+    def test_value_for_an_inactive_field_is_never_stored(self):
+        """A client that submits it anyway must not get it into the database."""
+        response = self.client.post(
+            self.url, {"contact_pref": "email", "phone": "555-0100"}
+        )
+        self.assertContains(response, "Thanks!")
+        self.assertNotIn("phone", FormSubmission.objects.get().data)

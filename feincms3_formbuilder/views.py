@@ -8,6 +8,7 @@ from django.template import Context
 from django.utils.safestring import mark_safe
 from feincms3_forms.renderer import create_form
 
+from feincms3_formbuilder.conditionals import create_form_with_conditionals
 from feincms3_formbuilder.models import STEP_REGION_PREFIX
 
 
@@ -36,7 +37,7 @@ def simple_form_view(request, configured_form, *, renderer, form_class=None):
     contents = contents_for_item(configured_form, plugins=renderer.plugins())
 
     if request.method == "POST":
-        form = create_form(
+        form = create_form_with_conditionals(
             contents["form"],
             form_class=form_class,
             form_kwargs={"data": request.POST, "files": request.FILES},
@@ -46,7 +47,7 @@ def simple_form_view(request, configured_form, *, renderer, form_class=None):
                 request, form, configured_form=configured_form
             )
     else:
-        form = create_form(
+        form = create_form_with_conditionals(
             contents["form"],
             form_class=form_class,
             form_kwargs={"initial": _ref_initial(request)},
