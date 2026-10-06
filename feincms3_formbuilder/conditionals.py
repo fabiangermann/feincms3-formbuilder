@@ -162,3 +162,16 @@ def create_form_with_conditionals(
     if state.inactive:
         form._f3f_cleaners.append(_drop_inactive)
     return form
+
+
+def condition_context(form, plugin):
+    """Return ``plugin``'s condition for a template, or ``{}``.
+
+    Returns ``{}`` both for unconditional plugins and for forms built with
+    feincms3-forms' ``create_form`` directly, so a project's own renderer works
+    either way.
+    """
+    state = getattr(form, "_f3fb_conditionals", None)
+    if state is None:
+        return {}
+    return state.conditions.get(plugin, {})

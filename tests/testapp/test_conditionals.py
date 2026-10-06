@@ -1,14 +1,18 @@
 from django.http import QueryDict
+from django.template import Context
 from django.test import SimpleTestCase, TestCase
+from feincms3_forms.renderer import create_form
 
 from feincms3_formbuilder.admin import simple_field_inlines
 from feincms3_formbuilder.conditionals import (
+    condition_context,
     controlling_value,
     create_form_with_conditionals,
     get_condition,
     is_active,
 )
 from feincms3_formbuilder.models import ConditionalFieldMixin
+from feincms3_formbuilder.renderer import render_form_field
 from testapp.models import ConfiguredForm, Radio, SimpleField, Text
 
 
@@ -104,8 +108,8 @@ class IsActiveTest(SimpleTestCase):
 class ConditionalFormTestCase(TestCase):
     """Shared fixture: a radio control and a required text field depending on it.
 
-    Holds no tests of its own — Task 4 reuses it, and subclassing a class that
-    has tests would re-run them under every subclass's name.
+    Holds no tests of its own, so subclasses reusing the fixture don't re-run
+    them under their own names.
     """
 
     def setUp(self):
@@ -214,3 +218,41 @@ class ConditionalFormBuildingTest(ConditionalFormTestCase):
         self.assertEqual(condition["field"], "contact_pref")
         self.assertEqual(condition["values"], '["phone"]')
         self.assertFalse(condition["active"])
+
+
+class ConditionContextTest(ConditionalFormTestCase):
+    def test_unconditional_plugin_has_no_context(self):
+        form = self._form({"contact_pref": "phone"})
+        self.assertEqual(condition_context(form, self.control), {})
+
+    def test_form_built_without_the_wrapper_has_no_context(self):
+        """Projects calling create_form directly must not crash the renderer."""
+        form = create_form(self.plugins, form_kwargs={})
+        self.assertEqual(condition_context(form, self.conditional), {})
+
+
+class RenderFormFieldTest(ConditionalFormTestCase):
+    """The page must show what the server decided, not wait for JavaScript."""
+
+    def _render(self, plugin, data):
+        form = self._form(data)
+        return render_form_field(plugin, Context({"form": form}))
+
+    def test_inactive_field_renders_hidden_with_the_attributes(self):
+        html = self._render(self.conditional, {"contact_pref": "email"})
+        self.assertIn('data-show-when-field="contact_pref"', html)
+        self.assertIn("data-show-when-values='[&quot;phone&quot;]'", html)
+        self.assertRegex(html, r"<div[^>]*\shidden")
+        self.assertRegex(html, r"<input[^>]*\sdisabled")
+
+    def test_active_field_renders_visible(self):
+        html = self._render(self.conditional, {"contact_pref": "phone"})
+        self.assertIn('data-show-when-field="contact_pref"', html)
+        self.assertIn("data-show-when-values='[&quot;phone&quot;]'", html)
+        self.assertNotRegex(html, r"\shidden")
+        self.assertNotRegex(html, r"<input[^>]*\sdisabled")
+
+    def test_unconditional_field_emits_no_attributes(self):
+        html = self._render(self.control, {"contact_pref": "phone"})
+        self.assertNotIn("data-show-when", html)
+        self.assertNotRegex(html, r"\shidden")
