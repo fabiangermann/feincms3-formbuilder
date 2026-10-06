@@ -16,8 +16,6 @@ Public API:
   resolved.
 - ``condition_context`` — the template context a renderer needs to emit a
   condition as data attributes.
-- ``validate_conditionals`` — editor-time check for the form type's
-  ``validate`` function.
 """
 
 import dataclasses
