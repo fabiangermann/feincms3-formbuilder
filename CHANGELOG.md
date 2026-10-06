@@ -15,6 +15,10 @@
   included with one `<script>` tag, which keeps the rendered state in sync
   while the page is open. Projects may use the documented data attribute
   contract with their own script instead.
+- `feincms3_formbuilder/form_field.html` receives a new `condition` variable
+  and emits it as data attributes and `hidden`. Projects overriding the
+  template must update their copy (see README), or a conditional field whose
+  condition is not met is shown with disabled inputs.
 
 ## 0.4.0
 

@@ -476,9 +476,31 @@ Limits:
 ### Without JavaScript
 
 The conditional field stays hidden until the user submits the form. The
-server then sees the answer to the controlling field and returns the form with
-the conditional field visible and a "required" error on it. Nothing is
-silently dropped.
+server then sees the answer to the controlling field. For a required
+conditional field, it returns the form with the field visible and a
+"required" error on it, so the missing answer is asked for rather than
+silently dropped. An optional conditional field is accepted empty, as if the
+user had left it blank.
+
+### Custom templates and renderers
+
+`render_form_field` passes the condition to `form_field.html` as the
+`condition` template variable. It is empty for an unconditional field and
+otherwise holds:
+
+- `field`: the name of the controlling field.
+- `values`: the satisfying values, already encoded as a JSON string for the
+  `data-show-when-values` attribute.
+- `active`: whether the server considers the condition met.
+
+If your project overrides `feincms3_formbuilder/form_field.html`, it must emit
+both data attributes and `hidden` from `condition` as the shipped template
+does (see the markup below). Otherwise a conditional field whose condition is
+not met is shown with disabled inputs.
+
+A custom renderer gets the same `condition` from
+`condition_context(form, plugin)`, importable from
+`feincms3_formbuilder.conditionals`.
 
 ### Custom scripts
 
@@ -491,20 +513,20 @@ element, with `hidden` set while the condition is not met:
 </div>
 ```
 
-A custom renderer gets the same three values from
-`condition_context(form, plugin)`, importable from
-`feincms3_formbuilder.conditionals`.
-
-`data-required-if-active` marks the inputs that are required while the field
-is active; a script sets `required` from it.
+The inputs of a conditional field carry `data-required-if-active` where
+Django would render `required`: it marks the inputs that are required while
+the field is active. While the condition is not met, the inputs also carry
+`disabled` and no `required`.
 
 To replace `conditionals.js`, your script must do the following whenever the
 controlling field changes:
 
 - Toggle `hidden` on the wrapper.
-- Toggle `disabled` on the inputs inside it.
+- Toggle `disabled` on the inputs inside it, so the browser does not send
+  values for fields the user cannot see.
 - Set `required` on an input exactly when the field is active and the input
-  carries `data-required-if-active`.
+  carries `data-required-if-active`. A hidden input that is still `required`
+  blocks the browser's submit.
 
 ### Notifications
 
