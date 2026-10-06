@@ -28,37 +28,41 @@ from django import forms
 from feincms3_forms.models import FormFieldBase, SimpleFieldBase
 from feincms3_forms.renderer import create_form
 
+from feincms3_formbuilder.models import ConditionalFieldMixin
+
 
 logger = logging.getLogger("feincms3_formbuilder.conditionals")
 
-CONTROLLING_TYPES = {SimpleFieldBase.Type.SELECT, SimpleFieldBase.Type.RADIO}
+_CONTROLLING_TYPES = {SimpleFieldBase.Type.SELECT, SimpleFieldBase.Type.RADIO}
 
 
-def get_condition(plugin):
+def _get_condition(plugin):
     """Return ``(controlling field name, values)``, or ``None`` if unconditional.
 
-    Tolerates plugins without ``ConditionalFieldMixin``: a project may register
-    field plugins that never opted into conditions.
+    Only plugins with ``ConditionalFieldMixin`` can carry a condition; a
+    project may register field plugins that never opted in, and an unrelated
+    ``show_when_field`` attribute on one of them must not turn it conditional.
     """
-    name = getattr(plugin, "show_when_field", "")
-    if not name:
+    if not isinstance(plugin, ConditionalFieldMixin) or not plugin.show_when_field:
         return None
-    return (name, plugin.show_when_values_list)
+    return (plugin.show_when_field, plugin.show_when_values_list)
 
 
-def controlling_value(name, data):
-    """Return the controlling field's answer as a string, ``""`` when unanswered.
+def _controlling_value(name, data):
+    """Return the controlling field's answer as the key that conditions compare
+    against, ``""`` when unanswered.
 
-    ``data`` may be a POST ``QueryDict``, the multistep session dict, or a
-    merge of both; ``.get()`` behaves the same on all three for the
-    single-valued select and radio fields that are allowed to control other
-    fields.
+    The single place that turns a raw answer into that key, whatever the
+    source: a POST ``QueryDict``, the multistep session dict, or a merge of
+    both. For select and radio fields the submitted value already is the key.
+    New controlling types change this function (checkboxes, multi-selects,
+    text, date and number fields).
     """
     value = data.get(name)
     return "" if value is None else str(value)
 
 
-def is_active(condition, data):
+def _is_active(condition, data):
     """Whether a field carrying ``condition`` applies to the available data.
 
     An unconditional field (``condition is None``) is always active; so is any
@@ -67,12 +71,13 @@ def is_active(condition, data):
     if condition is None:
         return True
     name, values = condition
-    return controlling_value(name, data) in values
+    return _controlling_value(name, data) in values
 
 
 @dataclasses.dataclass
-class FormConditionals:
-    """What a built form knows about its conditionals.
+class ResolvedConditionals:
+    """What ``create_form_with_conditionals`` decided about a form's
+    conditionals, attached to the form as ``form._f3fb_conditionals``.
 
     ``inactive`` holds form field names, not plugins, because that is what the
     cleaner and the stale-value filter in ``views.py`` work with; ``conditions``
@@ -100,35 +105,33 @@ def _drop_inactive(form, data):
 def create_form_with_conditionals(
     plugins, *, form_class=forms.Form, form_kwargs, available_data=None
 ):
-    """Build the form for ``plugins`` with every conditional resolved.
+    """Build the form from ``plugins`` and resolve its conditionals.
 
-    ``plugins``, ``form_class`` and ``form_kwargs`` go straight to
-    feincms3-forms' ``create_form``; ``available_data`` is the only addition.
-    Omit it and the form's own data is used — ``form.data`` when bound,
-    ``form.initial`` when not — which is correct at every call site except a
-    multistep step POST, where the controlling field may sit on an earlier step
-    and only the session holds its answer.
+    Every argument except ``available_data`` goes straight to feincms3-forms'
+    ``create_form``. ``available_data`` is what the conditions are evaluated
+    against. It defaults to ``form.data`` for a bound form and ``form.initial``
+    otherwise. Pass it when a controlling answer lives outside the form, as on
+    a multistep step POST whose controlling field is on an earlier step.
 
-    Inactive conditionals stay in the form. They are rendered hidden by the
-    template, stop being required, carry ``disabled`` inputs, and lose their
-    value in ``clean()``.
+    Inactive conditionals stay in the form: hidden, not required, disabled,
+    and dropped in ``clean()``.
     """
     form = create_form(plugins, form_class=form_class, form_kwargs=form_kwargs)
     if available_data is None:
         available_data = form.data if form.is_bound else form.initial
 
-    state = FormConditionals(inactive=set(), conditions={})
-    form._f3fb_conditionals = state
+    resolved = ResolvedConditionals(inactive=set(), conditions={})
+    form._f3fb_conditionals = resolved
 
     field_plugins = [p for p in plugins if isinstance(p, FormFieldBase)]
     types = {p.name: getattr(p, "type", "") for p in field_plugins}
 
     for plugin in field_plugins:
-        condition = get_condition(plugin)
+        condition = _get_condition(plugin)
         if condition is None:
             continue
         name, values = condition
-        if name in types and types[name] not in CONTROLLING_TYPES:
+        if name in types and types[name] not in _CONTROLLING_TYPES:
             # Only decidable for a controlling field in this very form; every
             # other misconfiguration is the editor-time check's job.
             logger.warning(
@@ -139,18 +142,21 @@ def create_form_with_conditionals(
             )
             active = False
         else:
-            active = is_active(condition, available_data)
+            active = _is_active(condition, available_data)
 
-        state.conditions[plugin] = {
+        resolved.conditions[plugin] = {
             "field": name,
             "values": json.dumps(values),
             "active": active,
         }
+
         if active:
             continue
 
+        # A plugin may contribute several form fields; the condition applies
+        # to all of them.
         for field_name in form.get_form_fields(plugin):
-            state.inactive.add(field_name)
+            resolved.inactive.add(field_name)
             field = form.fields[field_name]
             if field.required:
                 field.widget.attrs["data-required"] = True
@@ -159,7 +165,7 @@ def create_form_with_conditionals(
             # favour of initial, which breaks the no-JavaScript round-trip.
             field.widget.attrs["disabled"] = True
 
-    if state.inactive:
+    if resolved.inactive:
         form._f3f_cleaners.append(_drop_inactive)
     return form
 
@@ -171,7 +177,7 @@ def condition_context(form, plugin):
     feincms3-forms' ``create_form`` directly, so a project's own renderer works
     either way.
     """
-    state = getattr(form, "_f3fb_conditionals", None)
-    if state is None:
+    resolved = getattr(form, "_f3fb_conditionals", None)
+    if resolved is None:
         return {}
-    return state.conditions.get(plugin, {})
+    return resolved.conditions.get(plugin, {})

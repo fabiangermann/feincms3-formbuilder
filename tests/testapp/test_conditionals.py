@@ -6,11 +6,11 @@ from feincms3_forms.renderer import create_form
 
 from feincms3_formbuilder.admin import simple_field_inlines
 from feincms3_formbuilder.conditionals import (
+    _controlling_value,
+    _get_condition,
+    _is_active,
     condition_context,
-    controlling_value,
     create_form_with_conditionals,
-    get_condition,
-    is_active,
 )
 from feincms3_formbuilder.models import ConditionalFieldMixin
 from feincms3_formbuilder.renderer import render_form_field
@@ -60,7 +60,7 @@ class ConditionalAdminFieldsTest(TestCase):
 
 class GetConditionTest(SimpleTestCase):
     def test_no_controlling_field_means_unconditional(self):
-        self.assertIsNone(get_condition(SimpleField(show_when_values="phone")))
+        self.assertIsNone(_get_condition(SimpleField(show_when_values="phone")))
 
     def test_plugin_without_the_mixin_is_unconditional(self):
         """Projects may register plugins that never heard of conditions."""
@@ -68,49 +68,60 @@ class GetConditionTest(SimpleTestCase):
         class Plain:
             name = "plain"
 
-        self.assertIsNone(get_condition(Plain()))
+        self.assertIsNone(_get_condition(Plain()))
+
+    def test_unrelated_show_when_field_attribute_is_ignored(self):
+        """Only the mixin opts a plugin in; a project plugin that happens to
+        have an attribute of that name, but no ``show_when_values_list``,
+        must neither turn conditional nor crash the form."""
+
+        class Lookalike:
+            name = "lookalike"
+            show_when_field = "contact_pref"
+
+        self.assertIsNone(_get_condition(Lookalike()))
 
     def test_condition_is_the_name_and_the_parsed_keys(self):
         plugin = SimpleField(
             show_when_field="contact_pref", show_when_values="Phone\nsms"
         )
-        self.assertEqual(get_condition(plugin), ("contact_pref", ["phone", "sms"]))
+        self.assertEqual(_get_condition(plugin), ("contact_pref", ["phone", "sms"]))
 
 
 class ControllingValueTest(SimpleTestCase):
     def test_missing_key_reads_as_unanswered(self):
-        self.assertEqual(controlling_value("contact_pref", {}), "")
+        self.assertEqual(_controlling_value("contact_pref", {}), "")
 
     def test_none_reads_as_unanswered(self):
-        self.assertEqual(controlling_value("contact_pref", {"contact_pref": None}), "")
+        self.assertEqual(_controlling_value("contact_pref", {"contact_pref": None}), "")
 
     def test_querydict_yields_the_submitted_value(self):
         data = QueryDict("contact_pref=phone")
-        self.assertEqual(controlling_value("contact_pref", data), "phone")
+        self.assertEqual(_controlling_value("contact_pref", data), "phone")
 
     def test_non_string_session_value_is_coerced(self):
         """Session data comes back through JSON and is not always a string."""
-        self.assertEqual(controlling_value("count", {"count": 3}), "3")
+        self.assertEqual(_controlling_value("count", {"count": 3}), "3")
 
 
 class IsActiveTest(SimpleTestCase):
     condition = ("contact_pref", ["phone", "sms"])
 
     def test_unconditional_field_is_always_active(self):
-        self.assertTrue(is_active(None, {}))
+        self.assertTrue(_is_active(None, {}))
 
     def test_matching_answer_activates(self):
-        self.assertTrue(is_active(self.condition, {"contact_pref": "phone"}))
+        self.assertTrue(_is_active(self.condition, {"contact_pref": "phone"}))
 
     def test_other_answer_deactivates(self):
-        self.assertFalse(is_active(self.condition, {"contact_pref": "email"}))
+        self.assertFalse(_is_active(self.condition, {"contact_pref": "email"}))
 
     def test_unanswered_controlling_field_deactivates(self):
         """This is also the cross-step case: a step not yet reached has no answer."""
-        self.assertFalse(is_active(self.condition, {}))
+        self.assertFalse(_is_active(self.condition, {}))
 
     def test_condition_without_values_never_matches(self):
-        self.assertFalse(is_active(("contact_pref", []), {"contact_pref": "phone"}))
+        self.assertFalse(_is_active(("contact_pref", []), {"contact_pref": "phone"}))
 
 
 class ConditionalFormTestCase(TestCase):
