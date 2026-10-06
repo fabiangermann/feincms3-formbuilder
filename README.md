@@ -528,6 +528,23 @@ controlling field changes:
   carries `data-required-if-active`. A hidden input that is still `required`
   blocks the browser's submit.
 
+### Multi-step forms
+
+- A condition may name a field on the same step or on an earlier one.
+- A condition on a field of an earlier step is decided entirely on the server
+  and needs no JavaScript.
+- When the user goes back and changes the controlling answer, the server
+  re-evaluates the condition the next time it builds the dependent step. The
+  stale value is removed when the form is submitted, so `process` never sees
+  it. If the user switches the answer back before submitting, the earlier
+  input is restored.
+- A field may only be controlled by a field on the same or an earlier step. A
+  condition naming a field on a later step sees no answer, so the field is
+  never shown, and nothing at runtime reports it.
+- A step on which every field is inactive still appears in the progress
+  indicator, as a step with only a Next button. Put a conditional branch on a
+  step that has other fields.
+
 ### Notifications
 
 A recipient written as `{{ form_data.<name> }}` that names a field which is

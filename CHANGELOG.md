@@ -19,6 +19,11 @@
   and emits it as data attributes and `hidden`. Projects overriding the
   template must update their copy (see README), or a conditional field whose
   condition is not met is shown with disabled inputs.
+- Conditions work in multi-step forms, within a step and across steps. A
+  condition whose controlling field sits on an earlier step is resolved on the
+  server and needs no JavaScript. Values of fields that became inactive are
+  kept in the session, so changing the answer back restores them, and are
+  removed before `process` is called.
 
 ## 0.4.0
 

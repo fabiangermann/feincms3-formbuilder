@@ -246,17 +246,27 @@ def multistep_form_view(
                 step_data["data"] = accumulated_data
 
                 all_valid = True
+                inactive = set()
                 for region in step_regions:
                     step_form = create_form_with_conditionals(
                         contents[region.key],
                         form_class=validation_form_class,
                         form_kwargs={"data": accumulated_data},
                     )
+                    inactive |= step_form._f3fb_conditionals.inactive
                     if not step_form.is_valid():
                         all_valid = False
                         break
 
                 if all_valid:
+                    # Values of fields that went inactive are kept in the
+                    # session so switching the answer back restores them; this
+                    # is the one place they must not survive.
+                    accumulated_data = {
+                        key: value
+                        for key, value in accumulated_data.items()
+                        if key not in inactive
+                    }
                     # Clear session before processing
                     session_key = f"multistep_form_{configured_form.pk}"
                     request.session.pop(session_key, None)
