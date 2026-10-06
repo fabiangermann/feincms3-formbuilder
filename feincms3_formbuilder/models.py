@@ -6,6 +6,7 @@ from django.core.exceptions import ValidationError
 from django.core.serializers.json import DjangoJSONEncoder
 from django.db import models
 from django.utils.crypto import get_random_string
+from django.utils.text import slugify
 from django.utils.translation import gettext_lazy as _
 from feincms3_forms import models as forms_models
 from feincms3_forms.reporting import simple_report
@@ -45,6 +46,57 @@ class StepSlugField(models.CharField):
             )
             setattr(model_instance, self.attname, value)
         return value
+
+
+def _choice_key(line):
+    """Reduce one ``choices``-style line to the key the browser submits.
+
+    Mirrors ``SimpleFieldBase.get_choices()`` so that a line copied from
+    ``choices`` into ``show_when_values`` resolves to the same key.
+    """
+    parts = [part.strip() for part in line.split("|", 1)]
+    return parts[0] if len(parts) == 2 else slugify(line)
+
+
+class ConditionalFieldMixin(models.Model):
+    """Adds a show-when condition to a form field plugin.
+
+    Mix into the project's concrete ``SimpleField`` and generate the
+    migration. Plugins without the mixin are always unconditional, which is
+    why every reader of a condition must tolerate the attributes being
+    absent.
+    """
+
+    show_when_field = models.CharField(
+        _("show when field"),
+        max_length=50,
+        blank=True,
+        help_text=_(
+            "Name of the dropdown or radio field controlling this field."
+            " Leave empty to always show this field."
+        ),
+    )
+    show_when_values = models.TextField(
+        _("show when values"),
+        blank=True,
+        help_text=_(
+            "One value per line. This field is shown when the controlling"
+            " field's answer is one of them. Enter the label, the value, or a"
+            " line copied from the controlling field's choices."
+        ),
+    )
+
+    class Meta:
+        abstract = True
+
+    @property
+    def show_when_values_list(self):
+        """The condition's values as choice keys, in configured order."""
+        return [
+            _choice_key(line)
+            for line in self.show_when_values.splitlines()
+            if line.strip()
+        ]
 
 
 class AbstractFormStep(OrderableModel):
