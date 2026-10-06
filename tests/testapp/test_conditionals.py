@@ -18,6 +18,7 @@ from feincms3_formbuilder.renderer import render_form_field
 from testapp.models import (
     CheckboxSelectMultiple,
     ConfiguredForm,
+    FormStep,
     FormSubmission,
     Radio,
     RichText,
@@ -377,4 +378,140 @@ class ConditionalSimpleFormTest(TestCase):
             self.url, {"contact_pref": "email", "phone": "555-0100"}
         )
         self.assertContains(response, "Thanks!")
+        self.assertNotIn("phone", FormSubmission.objects.get().data)
+
+
+class ConditionalMultistepFormTest(TestCase):
+    """Two steps: the controlling radio on step 1, the conditional on step 2.
+
+    This is the case that needs no JavaScript at all — the server has the
+    controlling answer in the session before it builds step 2.
+    """
+
+    def setUp(self):
+        self.configured_form = ConfiguredForm.objects.create(
+            name="Registration", slug="registration-cond", form_type="multistep",
+        )
+        self.step1 = FormStep.objects.create(
+            configured_form=self.configured_form,
+            title="Preference", identifier="pref", ordering=10,
+        )
+        self.step2 = FormStep.objects.create(
+            configured_form=self.configured_form,
+            title="Details", identifier="details", ordering=20,
+        )
+        Radio.objects.create(
+            parent=self.configured_form, region=self.step1.region_key, ordering=10,
+            name="contact_pref", label="Preferred contact",
+            is_required=True, choices="Phone\nEmail",
+        )
+        Text.objects.create(
+            parent=self.configured_form, region=self.step2.region_key, ordering=10,
+            name="phone", label="Phone number", is_required=True,
+            show_when_field="contact_pref", show_when_values="phone",
+        )
+        Text.objects.create(
+            parent=self.configured_form, region=self.step2.region_key, ordering=20,
+            name="note", label="Note", is_required=False,
+        )
+        RichText.objects.create(
+            parent=self.configured_form, region="success", ordering=10,
+            text="<p>Done!</p>",
+        )
+        self.url = reverse("forms:form", kwargs={"slug": "registration-cond"})
+
+    def _post(self, data, action="next"):
+        return self.client.post(self.url, {**data, "_action": action})
+
+    def test_matching_earlier_answer_shows_the_field(self):
+        """Targets the wrapper: csrf_token inputs make a bare "hidden" match always."""
+        response = self._post({"contact_pref": "phone"})
+        html = response.content.decode()
+        self.assertRegex(html, r'<div[^>]*data-show-when-field="contact_pref"')
+        self.assertNotRegex(
+            html, r'<div[^>]*data-show-when-field="contact_pref"[^>]*\shidden'
+        )
+
+    def test_other_earlier_answer_hides_the_field(self):
+        response = self._post({"contact_pref": "email"})
+        self.assertRegex(
+            response.content.decode(),
+            r'<div[^>]*data-show-when-field="contact_pref"[^>]*\shidden',
+        )
+
+    def test_inactive_field_does_not_block_the_final_submit(self):
+        self._post({"contact_pref": "email"})
+        response = self._post({"note": "hi"}, action="submit")
+        self.assertContains(response, "Done!")
+        self.assertNotIn("phone", FormSubmission.objects.get().data)
+
+    def test_active_field_is_required_on_the_final_submit(self):
+        self._post({"contact_pref": "phone"})
+        response = self._post({"note": "hi"}, action="submit")
+        self.assertNotContains(response, "Done!")
+        self.assertEqual(FormSubmission.objects.count(), 0)
+
+    def test_going_back_and_changing_the_answer_drops_the_stale_value(self):
+        """The value was valid when entered; a change on another step makes it
+        inactive, and only a pass over every step before ``process`` sees that."""
+        self._post({"contact_pref": "phone"})
+        self._post({"phone": "555-0100"}, action="back")
+        self._post({"contact_pref": "email"})
+        response = self._post({"note": "hi"}, action="submit")
+        self.assertContains(response, "Done!")
+        self.assertNotIn("phone", FormSubmission.objects.get().data)
+
+    def test_switching_the_answer_back_restores_the_earlier_input(self):
+        """Values stay in the session while inactive, so a user who changes
+        their mind twice does not have to type the answer again."""
+        self._post({"contact_pref": "phone"})
+        self._post({"phone": "555-0100"}, action="back")
+        self._post({"contact_pref": "email"})
+        self._post({}, action="back")
+        self._post({"contact_pref": "phone"})
+        response = self._post({"phone": "555-0100"}, action="submit")
+        self.assertContains(response, "Done!")
+        self.assertEqual(FormSubmission.objects.get().data["phone"], "555-0100")
+
+
+class ConditionalSameStepTest(TestCase):
+    """Controlling field and conditional on the same step: the browser decides
+    live, but the server must still be the authority on what it accepts."""
+
+    def setUp(self):
+        self.configured_form = ConfiguredForm.objects.create(
+            name="One step", slug="one-step-cond", form_type="multistep",
+        )
+        self.step = FormStep.objects.create(
+            configured_form=self.configured_form,
+            title="All", identifier="all", ordering=10,
+        )
+        Radio.objects.create(
+            parent=self.configured_form, region=self.step.region_key, ordering=10,
+            name="contact_pref", label="Preferred contact",
+            is_required=True, choices="Phone\nEmail",
+        )
+        Text.objects.create(
+            parent=self.configured_form, region=self.step.region_key, ordering=20,
+            name="phone", label="Phone number", is_required=True,
+            show_when_field="contact_pref", show_when_values="phone",
+        )
+        RichText.objects.create(
+            parent=self.configured_form, region="success", ordering=10,
+            text="<p>Done!</p>",
+        )
+        self.url = reverse("forms:form", kwargs={"slug": "one-step-cond"})
+
+    def test_matching_answer_requires_the_field_in_the_same_post(self):
+        response = self.client.post(
+            self.url, {"contact_pref": "phone", "_action": "submit"}
+        )
+        self.assertNotContains(response, "Done!")
+        self.assertContains(response, "This field is required.")
+
+    def test_other_answer_submits_without_the_field(self):
+        response = self.client.post(
+            self.url, {"contact_pref": "email", "_action": "submit"}
+        )
+        self.assertContains(response, "Done!")
         self.assertNotIn("phone", FormSubmission.objects.get().data)

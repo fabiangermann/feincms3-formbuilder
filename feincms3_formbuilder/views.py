@@ -6,7 +6,6 @@ from django.core.serializers.json import DjangoJSONEncoder
 from django.shortcuts import render
 from django.template import Context
 from django.utils.safestring import mark_safe
-from feincms3_forms.renderer import create_form
 
 from feincms3_formbuilder.conditionals import create_form_with_conditionals
 from feincms3_formbuilder.models import STEP_REGION_PREFIX
@@ -85,24 +84,32 @@ def save_session_data(request, configured_form, step_data):
 
 
 def compute_step_statuses(
-    contents, step_regions, accumulated_data, current_step, *, form_class
+    contents, step_regions, accumulated_data, current_step, *, form_class,
+    available_data=None,
 ):
     """
     Validate all steps against accumulated data to generate step statuses.
 
     Returns a list of dicts with keys: number, name, status, is_current.
     Status is one of: "empty", "valid", "invalid".
+
+    ``available_data`` is what conditions are evaluated against; it defaults to
+    ``accumulated_data``, which is right except while a step is being
+    submitted, where the current POST has to be merged in first.
     """
+    if available_data is None:
+        available_data = accumulated_data
     steps = []
     for i, region in enumerate(step_regions):
         plugins = contents[region.key]
         if not accumulated_data:
             status = "empty"
         else:
-            form = create_form(
+            form = create_form_with_conditionals(
                 plugins,
                 form_class=form_class,
                 form_kwargs={"data": accumulated_data},
+                available_data=available_data,
             )
             has_data = any(accumulated_data.get(name) for name in form.fields)
             if not has_data:
@@ -139,20 +146,23 @@ def _merge_post_data(accumulated_data, form):
 def _render_step(
     request, configured_form, contents, step_regions, step_index, accumulated_data,
     *, renderer, form_class, validation_form_class, extra_context=None,
+    available_data=None,
 ):
     """Render a specific step, pre-filled with accumulated session data."""
     current_region = step_regions[step_index]
     total_steps = len(step_regions)
 
-    form = create_form(
+    form = create_form_with_conditionals(
         contents[current_region.key],
         form_class=form_class,
         form_kwargs={"initial": {**accumulated_data, **_ref_initial(request)}},
+        available_data=available_data,
     )
 
     steps = compute_step_statuses(
         contents, step_regions, accumulated_data, step_index,
         form_class=validation_form_class,
+        available_data=available_data,
     )
 
     context = Context({"request": request, "form": form})
@@ -211,10 +221,17 @@ def multistep_form_view(
     current_region = step_regions[current_step]
 
     if request.method == "POST":
-        form = create_form(
+        # The POST carries only this step's fields, but a controlling field may
+        # live on an earlier one, so the session has to be merged in. Use
+        # ``.dict()``: a QueryDict stores lists internally, so ``|`` would
+        # produce ``{"name": ["Alice"]}``.
+        available_data = accumulated_data | request.POST.dict()
+
+        form = create_form_with_conditionals(
             contents[current_region.key],
             form_class=form_class,
             form_kwargs={"data": request.POST, "files": request.FILES},
+            available_data=available_data,
         )
 
         action = request.POST.get("_action", "next")
@@ -232,6 +249,7 @@ def multistep_form_view(
                 renderer=renderer, form_class=form_class,
                 validation_form_class=validation_form_class,
                 extra_context=_step_labels(step_data["step"]),
+                available_data=available_data,
             )
 
         if submitting:
@@ -241,10 +259,11 @@ def multistep_form_view(
 
                 all_valid = True
                 for region in step_regions:
-                    step_form = create_form(
+                    step_form = create_form_with_conditionals(
                         contents[region.key],
                         form_class=validation_form_class,
                         form_kwargs={"data": accumulated_data},
+                        available_data=accumulated_data,
                     )
                     if not step_form.is_valid():
                         all_valid = False
@@ -273,12 +292,14 @@ def multistep_form_view(
                     renderer=renderer, form_class=form_class,
                     validation_form_class=validation_form_class,
                     extra_context=_step_labels(next_step),
+                    available_data=available_data,
                 )
 
         # Validation failed: re-render current step with errors
         steps = compute_step_statuses(
             contents, step_regions, accumulated_data, current_step,
             form_class=validation_form_class,
+            available_data=available_data,
         )
         context = Context({"request": request, "form": form})
         step_content = _render_region_content(
