@@ -16,15 +16,20 @@ Public API:
   resolved.
 - ``condition_context`` — the template context a renderer needs to emit a
   condition as data attributes.
+- ``validate_conditionals`` — editor-time check for the form type's
+  ``validate`` function.
 """
 
 import dataclasses
 import json
 import logging
 
+from content_editor.contents import contents_for_item
 from django import forms
+from django.utils.translation import gettext as _
 from feincms3_forms.models import FormFieldBase, SimpleFieldBase
 from feincms3_forms.renderer import create_form
+from feincms3_forms.validation import Error
 
 from feincms3_formbuilder.models import ConditionalFieldMixin
 
@@ -188,3 +193,111 @@ def condition_context(form, plugin):
     if resolved is None:
         return {}
     return resolved.conditions.get(plugin, {})
+
+
+def validate_conditionals(configured_form, renderer):
+    """Report misconfigured conditions to the editor after saving.
+
+    Returns feincms3-forms ``Error`` instances for the form type's ``validate``
+    function, like ``validate_notification_recipients``. At runtime a
+    misconfigured condition simply never matches, so the field is never shown
+    and nothing explains why, which is what makes this check worth the code.
+    """
+    contents = contents_for_item(configured_form, plugins=renderer.plugins())
+    region_order = {
+        region.key: index for index, region in enumerate(configured_form.regions)
+    }
+
+    plugins = []
+    for region in configured_form.regions:
+        for plugin in contents[region.key]:
+            if isinstance(plugin, FormFieldBase):
+                plugins.append(plugin)
+    by_name = {plugin.name: plugin for plugin in plugins}
+
+    errors = []
+    for plugin in plugins:
+        condition = _get_condition(plugin)
+        if condition is None:
+            continue
+        name, values = condition
+
+        if name == plugin.name:
+            errors.append(
+                Error(
+                    _("Field '%(field)s' is configured to depend on itself.")
+                    % {"field": plugin.name}
+                )
+            )
+            continue
+
+        control = by_name.get(name)
+        if control is None:
+            errors.append(
+                Error(
+                    _("Field '%(field)s' depends on '%(control)s', which doesn't exist.")
+                    % {"field": plugin.name, "control": name}
+                )
+            )
+            continue
+
+        if getattr(control, "type", "") not in _CONTROLLING_TYPES:
+            errors.append(
+                Error(
+                    _(
+                        "Field '%(field)s' depends on '%(control)s', which is not a"
+                        " dropdown or a radio field."
+                    )
+                    % {"field": plugin.name, "control": name}
+                )
+            )
+            continue
+
+        if _get_condition(control) is not None:
+            errors.append(
+                Error(
+                    _(
+                        "Field '%(field)s' depends on '%(control)s', which is itself"
+                        " conditional. Chained conditions are not supported."
+                    )
+                    % {"field": plugin.name, "control": name}
+                )
+            )
+
+        if region_order.get(control.region, 0) > region_order.get(plugin.region, 0):
+            errors.append(
+                Error(
+                    _(
+                        "Field '%(field)s' depends on '%(control)s', which is asked on"
+                        " a later step. It would never be shown."
+                    )
+                    % {"field": plugin.name, "control": name}
+                )
+            )
+
+        if not values:
+            errors.append(
+                Error(
+                    _("Field '%(field)s' has a controlling field but no values.")
+                    % {"field": plugin.name}
+                )
+            )
+            continue
+
+        choice_keys = {key for key, _label in control.get_choices()}
+        if unknown := [value for value in values if value not in choice_keys]:
+            errors.append(
+                Error(
+                    _(
+                        "Field '%(field)s' is shown for %(values)s, which"
+                        " '%(control)s' doesn't offer."
+                    )
+                    % {
+                        "field": plugin.name,
+                        "control": name,
+                        "values": ", ".join(f"'{value}'" for value in sorted(unknown)),
+                    }
+                )
+            )
+
+    return errors

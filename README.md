@@ -473,7 +473,8 @@ Limits:
 - A controlling field must not itself be conditional.
 - A field has at most one condition.
 - In a multi-step form, the controlling field must be on the same step or an
-  earlier one. A field controlled from a later step is never shown.
+  earlier one. A field controlled from a later step is never shown; the
+  [editor-time check](#editor-time-check) reports it.
 - A step on which every field is inactive still appears in the progress
   indicator, with only a Next button. Put conditional fields on a step that
   has other fields too.
@@ -532,6 +533,38 @@ controlling field changes:
 - Set `required` on an input exactly when the field is active and the input
   carries `data-required-if-active`. A hidden input that is still `required`
   blocks the browser's submit.
+
+### Editor-time check
+
+At runtime a misconfigured condition only means the field is never shown, with
+nothing to tell the editor why. Add `validate_conditionals` to your form type's
+`validate` function to report these problems:
+
+```python
+# myapp/validation.py
+from feincms3_formbuilder.conditionals import validate_conditionals
+
+
+def validate_configured_form(configured_form):
+    return [
+        *validate_with_renderer(configured_form, renderer),
+        *validate_conditionals(configured_form, renderer),
+    ]
+```
+
+It reports a condition that:
+
+- names a controlling field that does not exist,
+- names the field itself,
+- names a controlling field that is not a dropdown or radio field,
+- names a controlling field that is itself conditional,
+- names a controlling field on a later step,
+- has a controlling field but no values,
+- lists a value the controlling field does not offer.
+
+The admin shows these as messages after saving. They warn and do not block
+saving. A controlling field on a later step is the one problem with no
+symptom at runtime, because the field is simply never shown.
 
 ### Notifications
 

@@ -12,6 +12,7 @@ from feincms3_formbuilder.conditionals import (
     _is_active,
     condition_context,
     create_form_with_conditionals,
+    validate_conditionals,
 )
 from feincms3_formbuilder.models import ConditionalFieldMixin
 from feincms3_formbuilder.renderer import render_form_field
@@ -25,6 +26,7 @@ from testapp.models import (
     SimpleField,
     Text,
 )
+from testapp.renderer import renderer
 
 
 class ShowWhenValuesListTest(SimpleTestCase):
@@ -558,3 +560,94 @@ class ConditionalMultistepDefaultTest(TestCase):
         self.assertNotRegex(
             html, r'<div[^>]*data-show-when-field="contact_pref"[^>]*\shidden'
         )
+
+
+class ValidateConditionalsTest(TestCase):
+    """The editor-time check is the only thing that explains a dead condition.
+
+    At runtime a misconfigured condition just means the field is never shown.
+    """
+
+    def setUp(self):
+        self.configured_form = ConfiguredForm.objects.create(
+            name="Checked", slug="checked", form_type="simple",
+        )
+        self.control = Radio.objects.create(
+            parent=self.configured_form, region="form", ordering=10,
+            name="contact_pref", label="Preferred contact",
+            is_required=True, choices="Phone\nEmail",
+        )
+
+    def _conditional(self, **kwargs):
+        return Text.objects.create(
+            parent=self.configured_form, region="form", ordering=20,
+            name="phone", label="Phone number", **kwargs,
+        )
+
+    def _errors(self):
+        return [
+            str(error)
+            for error in validate_conditionals(self.configured_form, renderer)
+        ]
+
+    def test_valid_condition_passes(self):
+        self._conditional(show_when_field="contact_pref", show_when_values="phone")
+        self.assertEqual(self._errors(), [])
+
+    def test_unconditional_fields_pass(self):
+        self._conditional()
+        self.assertEqual(self._errors(), [])
+
+    def test_unknown_controlling_field_is_reported(self):
+        self._conditional(show_when_field="nope", show_when_values="phone")
+        self.assertIn("nope", self._errors()[0])
+
+    def test_self_reference_is_reported(self):
+        self._conditional(show_when_field="phone", show_when_values="phone")
+        self.assertEqual(len(self._errors()), 1)
+
+    def test_unsupported_controlling_type_is_reported(self):
+        Text.objects.create(
+            parent=self.configured_form, region="form", ordering=5,
+            name="nickname", label="Nickname",
+        )
+        self._conditional(show_when_field="nickname", show_when_values="x")
+        self.assertIn("nickname", self._errors()[0])
+
+    def test_chained_condition_is_reported(self):
+        self.control.show_when_field = "other"
+        self.control.save()
+        self._conditional(show_when_field="contact_pref", show_when_values="phone")
+        self.assertTrue(any("contact_pref" in e for e in self._errors()))
+
+    def test_empty_values_are_reported(self):
+        self._conditional(show_when_field="contact_pref", show_when_values="")
+        self.assertEqual(len(self._errors()), 1)
+
+    def test_value_outside_the_controlling_choices_is_reported(self):
+        self._conditional(show_when_field="contact_pref", show_when_values="fax")
+        self.assertIn("fax", self._errors()[0])
+
+    def test_controlling_field_on_a_later_step_is_reported(self):
+        """At runtime a forward reference reads as "no answer", so the field is
+        silently never shown. Only this check can tell the editor."""
+        multistep = ConfiguredForm.objects.create(
+            name="Steps", slug="steps-check", form_type="multistep",
+        )
+        first = FormStep.objects.create(
+            configured_form=multistep, title="One", identifier="one", ordering=10,
+        )
+        second = FormStep.objects.create(
+            configured_form=multistep, title="Two", identifier="two", ordering=20,
+        )
+        Radio.objects.create(
+            parent=multistep, region=second.region_key, ordering=10,
+            name="later_pref", label="Later", choices="Phone\nEmail",
+        )
+        Text.objects.create(
+            parent=multistep, region=first.region_key, ordering=10,
+            name="early", label="Early",
+            show_when_field="later_pref", show_when_values="phone",
+        )
+        errors = [str(e) for e in validate_conditionals(multistep, renderer)]
+        self.assertIn("later_pref", errors[0])

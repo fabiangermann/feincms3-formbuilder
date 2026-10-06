@@ -20,6 +20,11 @@
   template must update their copy (see README), or a conditional field whose
   condition is not met is shown with disabled inputs.
 - Conditions work in multi-step forms, within a step and across steps.
+- New `validate_conditionals(configured_form, renderer)` for the form type's
+  `validate` function. It reports conditions naming a field that doesn't
+  exist, isn't a dropdown or radio, is itself conditional, or is asked on a
+  later step, as well as empty or unknown value lists. Projects must add the
+  call to their `validate` function (see README).
 
 ## 0.4.0
 
