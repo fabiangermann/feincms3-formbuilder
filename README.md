@@ -9,6 +9,40 @@ relationship to feincms3-forms mirrors the relationship of
 lower-level library defines the protocol; feincms3-formbuilder wires everything
 together so that projects only need to write the thin, project-specific layer.
 
+## Contents
+
+- [Installation](#installation)
+- [Models](#models)
+  - [ConfiguredForm](#configuredform)
+  - [FormStep](#formstep)
+  - [FormSubmission](#formsubmission)
+  - [SimpleField and proxy models](#simplefield-and-proxy-models)
+- [Processing](#processing)
+- [Notifications](#notifications)
+  - [Concrete `FormNotification` model](#concrete-formnotification-model)
+  - [Sending notifications from `process()`](#sending-notifications-from-process)
+  - [Variables for editors](#variables-for-editors)
+  - [Failure handling](#failure-handling)
+  - [`FORMBUILDER_FROM_EMAIL` setting](#formbuilder_from_email-setting)
+  - [`FORMBUILDER_CLIENT_IP_RESOLVER` setting](#formbuilder_client_ip_resolver-setting)
+  - [Admin integration](#admin-integration)
+  - [Extending with extra fields](#extending-with-extra-fields)
+- [Validation](#validation)
+- [Conditional fields](#conditional-fields)
+  - [Setup](#setup)
+  - [Configuring a condition](#configuring-a-condition)
+  - [Without JavaScript](#without-javascript)
+  - [Custom templates and renderers](#custom-templates-and-renderers)
+  - [Custom scripts](#custom-scripts)
+  - [Editor-time check](#editor-time-check)
+  - [Notifications](#notifications-1)
+- [Renderer](#renderer)
+- [Admin](#admin)
+- [Submission export (XLSX)](#submission-export-xlsx)
+- [Views and URLs](#views-and-urls)
+- [Templates](#templates)
+- [Templatetags](#templatetags)
+
 ---
 
 ## Installation
