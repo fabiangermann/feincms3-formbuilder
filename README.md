@@ -11,41 +11,45 @@ together so that projects only need to write the thin, project-specific layer.
 
 ## Contents
 
-- [Installation](#installation)
-- [Models](#models)
-  - [ConfiguredForm](#configuredform)
-  - [FormStep](#formstep)
-  - [FormSubmission](#formsubmission)
-  - [SimpleField and proxy models](#simplefield-and-proxy-models)
-- [Processing](#processing)
-- [Notifications](#notifications)
-  - [Concrete `FormNotification` model](#concrete-formnotification-model)
-  - [Sending notifications from `process()`](#sending-notifications-from-process)
-  - [Variables for editors](#variables-for-editors)
-  - [Failure handling](#failure-handling)
-  - [`FORMBUILDER_FROM_EMAIL` setting](#formbuilder_from_email-setting)
-  - [`FORMBUILDER_CLIENT_IP_RESOLVER` setting](#formbuilder_client_ip_resolver-setting)
-  - [Admin integration](#admin-integration)
-  - [Extending with extra fields](#extending-with-extra-fields)
-- [Validation](#validation)
-- [Conditional fields](#conditional-fields)
-  - [Setup](#setup)
-  - [Configuring a condition](#configuring-a-condition)
-  - [Without JavaScript](#without-javascript)
-  - [Custom templates and renderers](#custom-templates-and-renderers)
-  - [Custom scripts](#custom-scripts)
-  - [Editor-time check](#editor-time-check)
-  - [Notifications](#notifications-1)
-- [Renderer](#renderer)
-- [Admin](#admin)
-- [Submission export (XLSX)](#submission-export-xlsx)
-- [Views and URLs](#views-and-urls)
-- [Templates](#templates)
-- [Templatetags](#templatetags)
+- [Core setup](#core-setup)
+  - [Installation](#installation)
+  - [Models](#models)
+    - [ConfiguredForm](#configuredform)
+    - [FormStep](#formstep)
+    - [FormSubmission](#formsubmission)
+    - [SimpleField and proxy models](#simplefield-and-proxy-models)
+  - [Renderer](#renderer)
+  - [Validation](#validation)
+  - [Processing](#processing)
+    - [`FORMBUILDER_CLIENT_IP_RESOLVER` setting](#formbuilder_client_ip_resolver-setting)
+  - [Admin](#admin)
+  - [Views and URLs](#views-and-urls)
+  - [Templates](#templates)
+  - [Templatetags](#templatetags)
+- [Optional features](#optional-features)
+  - [Notifications](#notifications)
+    - [Concrete `FormNotification` model](#concrete-formnotification-model)
+    - [Sending notifications from `process()`](#sending-notifications-from-process)
+    - [Variables for editors](#variables-for-editors)
+    - [Failure handling](#failure-handling)
+    - [`FORMBUILDER_FROM_EMAIL` setting](#formbuilder_from_email-setting)
+    - [Admin integration](#admin-integration)
+    - [Extending with extra fields](#extending-with-extra-fields)
+  - [Conditional fields](#conditional-fields)
+    - [Setup](#setup)
+    - [Configuring a condition](#configuring-a-condition)
+    - [Without JavaScript](#without-javascript)
+    - [Custom templates and renderers](#custom-templates-and-renderers)
+    - [Custom scripts](#custom-scripts)
+    - [Editor-time check](#editor-time-check)
+    - [Notifications](#notifications-1)
+  - [Submission export (XLSX)](#submission-export-xlsx)
 
 ---
 
-## Installation
+## Core setup
+
+### Installation
 
 ```
 pip install feincms3-formbuilder
@@ -65,11 +69,11 @@ INSTALLED_APPS = [
 
 ---
 
-## Models
+### Models
 
 Create four concrete models in your app.
 
-### ConfiguredForm
+#### ConfiguredForm
 
 Subclass `AbstractConfiguredForm`, add any project fields (e.g. a slug), and
 override `FORMS` to point `validate` and `process` at your own functions:
@@ -122,7 +126,7 @@ class ConfiguredForm(AbstractConfiguredForm):
     ]
 ```
 
-### FormStep
+#### FormStep
 
 Subclass `AbstractFormStep` and add a FK to `ConfiguredForm`.  The
 `AbstractFormStep` provides `title`, an auto-generated `identifier` (used as
@@ -143,7 +147,7 @@ class FormStep(AbstractFormStep):
         ]
 ```
 
-### FormSubmission
+#### FormSubmission
 
 Subclass `AbstractFormSubmission`, add a FK to `ConfiguredForm`, and override
 `get_formatted_data` to pass your field model:
@@ -168,7 +172,7 @@ generic FK fields (used for the submission-ref feature described below).
 (`auto_now_add=True`) and `updated_at` (`auto_now=True`).  The default
 `ordering` on `AbstractConfiguredForm` is `["-created_at"]`.
 
-### SimpleField and proxy models
+#### SimpleField and proxy models
 
 Create the plugin base, a `SimpleField` model, and proxy models for each
 field type you want to support:
@@ -201,7 +205,64 @@ django-content-editor plugin is added.
 
 ---
 
-## Processing
+### Renderer
+
+Call `create_form_renderer()` with your field-producing plugin models as
+positional arguments and any non-field plugins via `extra_plugins`:
+
+```python
+# myapp/renderer.py
+from feincms3.renderer import template_renderer
+from feincms3_formbuilder.renderer import create_form_renderer
+from myapp.models import NewsletterField, RichText, SimpleField
+
+renderer = create_form_renderer(
+    SimpleField,
+    NewsletterField,
+    extra_plugins={
+        RichText: template_renderer("myapp/richtext.html"),
+    },
+)
+```
+
+`create_form_renderer(*field_models, extra_plugins=None)` returns a
+`RegionRenderer` where:
+
+- Every model in `field_models` is wired to the built-in `render_form_field`
+  handler, which renders each field using
+  `feincms3_formbuilder/form_field.html`.  Pass any number of plugin models
+  here — they all share that same wrapper template.
+- Every model in `extra_plugins` is registered with the renderer callable you
+  provide.  Use this for plugins that are not form fields (e.g. a `RichText`
+  block) **or** for field plugins that need different outer markup than
+  `form_field.html` — in that case write a custom renderer that calls
+  `form.get_form_fields(plugin)` itself.
+
+If you want every field to render through your own template, override
+`feincms3_formbuilder/form_field.html` in your project's templates directory
+rather than registering each model individually.
+
+---
+
+### Validation
+
+Implement a `validate` function that returns a list of error strings.  Use the
+`validate_with_renderer` helper so that field-name uniqueness is checked across
+all plugins registered with your renderer:
+
+```python
+# myapp/validation.py
+from feincms3_formbuilder.models import validate_with_renderer
+from myapp.renderer import renderer
+
+
+def validate_configured_form(configured_form):
+    return validate_with_renderer(configured_form, renderer)
+```
+
+---
+
+### Processing
 
 A `process` function receives the request and validated data and must return
 an `HttpResponse`.  Use the `create_submission` and `render_success_region`
@@ -235,16 +296,197 @@ def process_multistep_form(request, configured_form, accumulated_data):
 [Templatetags](#templatetags)) from `data`, verifies it, and stores the
 resolved generic FK on the submission.
 
+#### `FORMBUILDER_CLIENT_IP_RESOLVER` setting
+
+`create_submission` stores the client IP on each submission. By default it
+uses `REMOTE_ADDR` (the TCP peer address), which cannot be spoofed by
+clients. Deployments behind a proxy — where `REMOTE_ADDR` is the proxy —
+should set `FORMBUILDER_CLIENT_IP_RESOLVER` to a dotted path to a callable
+`(request) -> str | None` that consults the appropriate forwarded header:
+
+```python
+# settings.py
+FORMBUILDER_CLIENT_IP_RESOLVER = "myproject.utils.client_ip"
+
+# myproject/utils.py
+def client_ip(request):
+    xff = request.META.get("HTTP_X_FORWARDED_FOR", "")
+    return xff.split(",")[0].strip() or request.META.get("REMOTE_ADDR")
+```
+
+No forwarded header is honored by default because trusting one without a
+proxy in front would let clients spoof their own IP. The resolver lives
+in your project so the trust model (which header, how many hops) is
+explicit.
+
 ---
 
-## Notifications
+### Admin
+
+Use `ConfiguredFormAdmin` together with the `simple_field_inlines()` helper and
+`FormStepInline`:
+
+```python
+# myapp/admin.py
+from django.contrib import admin
+from feincms3_formbuilder.admin import FormStepInline, simple_field_inlines
+from myapp.models import ConfiguredForm, FormStep, SimpleField
+
+
+@admin.register(ConfiguredForm)
+class ConfiguredFormAdmin(admin.ModelAdmin):
+    inlines = [
+        FormStepInline.for_model(FormStep),
+        *simple_field_inlines(SimpleField),
+    ]
+```
+
+`simple_field_inlines(model)` returns one `SimpleFieldInline` per field type,
+each pre-configured with a Material Icons button and a `deny_regions({"success"})`
+constraint so that field plugins cannot be placed in the success region.
+
+`FormStepInline` is an `OrderableAdmin` `TabularInline`.  Bind it to your
+concrete `FormStep` model with `FormStepInline.for_model(FormStep)`, or by
+subclassing and setting `model` explicitly.
+
+For the submission admin, subclass `BaseFormSubmissionAdmin`:
+
+```python
+from feincms3_formbuilder.admin import BaseFormSubmissionAdmin
+from myapp.models import FormSubmission
+
+
+@admin.register(FormSubmission)
+class FormSubmissionAdmin(BaseFormSubmissionAdmin):
+    pass  # add project-specific actions, list_filter etc. here
+```
+
+`BaseFormSubmissionAdmin` ships:
+
+- `list_display`, `list_filter`, `date_hierarchy`, and a two-section `fieldsets`
+  (main data + related object) covering every field on `AbstractFormSubmission`
+  plus the consumer's required `configured_form` FK.
+- `formatted_data_display` — calls `obj.get_formatted_data()`.
+- `related_object_link` — resolves the generic FK (`related_content_type` /
+  `related_object_id`) to an admin change-page link, or `-` when unset.
+- `has_add_permission()` returning `False` (submissions are user-generated).
+
+---
+
+### Views and URLs
+
+Write a thin wrapper that looks up the `ConfiguredForm` and dispatches to
+`simple_form_view` or `multistep_form_view`:
+
+```python
+# myapp/views.py
+from django.shortcuts import get_object_or_404
+from feincms3_formbuilder.views import multistep_form_view, simple_form_view
+from myapp.models import ConfiguredForm
+from myapp.renderer import renderer
+
+
+def form_view(request, slug):
+    configured_form = get_object_or_404(ConfiguredForm, slug=slug)
+    if configured_form.form_type == "multistep":
+        return multistep_form_view(request, configured_form, renderer=renderer)
+    return simple_form_view(request, configured_form, renderer=renderer)
+```
+
+```python
+# myapp/urls.py
+from django.urls import path
+from myapp import views
+
+app_name = "forms"
+
+urlpatterns = [
+    path("<slug:slug>/", views.form_view, name="form"),
+]
+```
+
+The dispatch lives in your project because your project owns the `FORMS`
+configuration that defines which form types exist. The `"multistep"` string
+above must match the `key=` you set on the corresponding `FormType` in
+`FORMS`.
+
+`multistep_form_view` walks all regions whose key starts with
+`STEP_REGION_PREFIX` (`"step_"`) — this matches `AbstractFormStep.region_key`.
+Pass `get_step_regions=` (a callable `(configured_form) -> list[Region]`) to
+override the selection, e.g. to mix step regions with project-specific
+content regions.
+
+---
+
+### Templates
+
+The package ships three minimal templates under
+`feincms3_formbuilder/`:
+
+| Template | Used by |
+|---|---|
+| `form.html` | `simple_form_view` — wraps the form in a `<form>` tag with a Submit button |
+| `multistep_form.html` | `multistep_form_view` — adds step navigation, Back / Next / Submit buttons |
+| `form_field.html` | `render_form_field` — renders label, widget, help text, and errors for each field |
+
+Override any of them by creating a file at the same path inside your project's
+template directories.  For example, to style the step navigation, copy
+`feincms3_formbuilder/multistep_form.html` into your app's
+`templates/feincms3_formbuilder/` directory and modify it as needed.
+
+---
+
+### Templatetags
+
+Load `feincms3_formbuilder_tags` to access the `make_submission_ref` filter.
+It signs a content-type / object-id pair so that a form submission can be
+linked back to a related object (e.g. an event registration linked to an event):
+
+```html
+{% load feincms3_formbuilder_tags %}
+
+<form method="post">
+  {% csrf_token %}
+  <input type="hidden" name="_ref" value="{{ event|make_submission_ref }}">
+  ...
+</form>
+```
+
+When `create_submission` processes the form data it pops `_ref`, verifies the
+signature, and stores the resolved generic FK on the submission.  You can then
+query submissions for a specific object:
+
+```python
+FormSubmission.objects.for_related_object(event)
+```
+
+The view layer also reads `?ref=` from the GET query string and pre-fills it
+into the form's `initial` data under the key `_ref`.  This lets you link to a
+form with `?ref={{ obj|make_submission_ref }}` and have the token survive
+through the form submission, provided your form class declares a hidden
+`_ref` field:
+
+```python
+from django import forms
+
+class BaseForm(forms.Form):
+    _ref = forms.CharField(required=False, widget=forms.HiddenInput)
+```
+
+If your form class has no `_ref` field the initial value is silently ignored.
+
+---
+
+## Optional features
+
+### Notifications
 
 `feincms3-formbuilder` ships an optional notification module that lets a
 project send confirmation/staff emails after a form submission. The
 package provides the abstract model, validator, and helper; the project
 owns the concrete model, admin integration, and editor widget.
 
-### Concrete `FormNotification` model
+#### Concrete `FormNotification` model
 
 ```python
 from feincms3_formbuilder.notifications import AbstractFormNotification
@@ -299,7 +541,7 @@ Only `SimpleFieldBase.Type.EMAIL` counts as an email field unless you pass
 `SimpleFieldBase.Type.EMAIL` alongside your custom types. A custom field
 plugin's type is its lowercased class name.
 
-### Sending notifications from `process()`
+#### Sending notifications from `process()`
 
 ```python
 # myapp/processing.py
@@ -325,7 +567,7 @@ to the editor as Django template variables in `subject` and `body`. The
 help text and the only one `recipients` supports); other keys are
 project-specific.
 
-### Variables for editors
+#### Variables for editors
 
 Documented out of the box:
 
@@ -334,7 +576,7 @@ Documented out of the box:
 Anything else (a submission link, a related-object link, a project-
 specific identifier) is whatever the project decides to put in `context`.
 
-### Failure handling
+#### Failure handling
 
 Recipients that don't resolve to a valid email address are skipped and logged
 at `ERROR`; the notification is still sent to the remaining recipients.
@@ -345,37 +587,14 @@ are logged via the `feincms3_formbuilder.notifications` logger at `ERROR`
 and the remaining notifications continue to send. Pass
 `fail_silently=False` to re-raise instead — useful in tests.
 
-### `FORMBUILDER_FROM_EMAIL` setting
+#### `FORMBUILDER_FROM_EMAIL` setting
 
 The From address used for every notification is, in order:
 
 1. `settings.FORMBUILDER_FROM_EMAIL` if set and non-empty
 2. `settings.DEFAULT_FROM_EMAIL`
 
-### `FORMBUILDER_CLIENT_IP_RESOLVER` setting
-
-`create_submission` stores the client IP on each submission. By default it
-uses `REMOTE_ADDR` (the TCP peer address), which cannot be spoofed by
-clients. Deployments behind a proxy — where `REMOTE_ADDR` is the proxy —
-should set `FORMBUILDER_CLIENT_IP_RESOLVER` to a dotted path to a callable
-`(request) -> str | None` that consults the appropriate forwarded header:
-
-```python
-# settings.py
-FORMBUILDER_CLIENT_IP_RESOLVER = "myproject.utils.client_ip"
-
-# myproject/utils.py
-def client_ip(request):
-    xff = request.META.get("HTTP_X_FORWARDED_FOR", "")
-    return xff.split(",")[0].strip() or request.META.get("REMOTE_ADDR")
-```
-
-No forwarded header is honored by default because trusting one without a
-proxy in front would let clients spoof their own IP. The resolver lives
-in your project so the trust model (which header, how many hops) is
-explicit.
-
-### Admin integration
+#### Admin integration
 
 The package ships no admin classes for notifications. Wire your inline
 in your project admin:
@@ -412,7 +631,7 @@ class FormNotificationInline(admin.TabularInline):
     form = FormNotificationInlineForm
 ```
 
-### Extending with extra fields
+#### Extending with extra fields
 
 Projects that want `from_email` / `reply_to` / `bcc` / `cc` add fields
 to their concrete subclass and pass a custom `send_one` to the helper:
@@ -433,32 +652,14 @@ send_form_notifications(
 
 ---
 
-## Validation
-
-Implement a `validate` function that returns a list of error strings.  Use the
-`validate_with_renderer` helper so that field-name uniqueness is checked across
-all plugins registered with your renderer:
-
-```python
-# myapp/validation.py
-from feincms3_formbuilder.models import validate_with_renderer
-from myapp.renderer import renderer
-
-
-def validate_configured_form(configured_form):
-    return validate_with_renderer(configured_form, renderer)
-```
-
----
-
-## Conditional fields
+### Conditional fields
 
 A field can be made conditional on a dropdown or radio field, the
 *controlling field*: it is shown, and required if configured as required,
 only when the controlling field is answered with one of the configured
 values. Otherwise its value is not stored.
 
-### Setup
+#### Setup
 
 Add `ConditionalFieldMixin` to your concrete `SimpleField` and generate the
 migration:
@@ -488,7 +689,7 @@ Include the script on every page showing the form:
 <script src="{% static 'feincms3_formbuilder/conditionals.js' %}" defer></script>
 ```
 
-### Configuring a condition
+#### Configuring a condition
 
 Editors fill in two fields in the "Advanced" fieldset of the conditional
 field:
@@ -513,7 +714,7 @@ Limits:
   indicator, with only a Next button. Put conditional fields on a step that
   has other fields too.
 
-### Without JavaScript
+#### Without JavaScript
 
 The conditional field stays hidden until the user submits the form. The
 server then sees the answer to the controlling field. For a required
@@ -522,7 +723,7 @@ conditional field, it returns the form with the field visible and a
 silently dropped. An optional conditional field is accepted empty, as if the
 user had left it blank.
 
-### Custom templates and renderers
+#### Custom templates and renderers
 
 `render_form_field` passes the condition to `form_field.html` as the
 `condition` template variable. It is empty for an unconditional field and
@@ -542,7 +743,7 @@ A custom renderer gets the same `condition` from
 `condition_context(form, plugin)`, importable from
 `feincms3_formbuilder.conditionals`.
 
-### Custom scripts
+#### Custom scripts
 
 The server renders each condition as data attributes on the field's wrapper
 element, with `hidden` set while the condition is not met:
@@ -568,7 +769,7 @@ controlling field changes:
   carries `data-required-if-active`. A hidden input that is still `required`
   blocks the browser's submit.
 
-### Editor-time check
+#### Editor-time check
 
 Projects whose editors configure conditions need this check. At runtime a
 misconfigured condition, such as a mistyped value, only means that the field
@@ -608,105 +809,14 @@ It reports a condition that:
 The admin shows these as errors after saving. Saving is not blocked, so the
 editor has to fix the condition and save again.
 
-### Notifications
+#### Notifications
 
 A recipient written as `{{ form_data.<name> }}` that names a field which is
 not active is skipped, exactly like an optional email field left empty.
 
 ---
 
-## Renderer
-
-Call `create_form_renderer()` with your field-producing plugin models as
-positional arguments and any non-field plugins via `extra_plugins`:
-
-```python
-# myapp/renderer.py
-from feincms3.renderer import template_renderer
-from feincms3_formbuilder.renderer import create_form_renderer
-from myapp.models import NewsletterField, RichText, SimpleField
-
-renderer = create_form_renderer(
-    SimpleField,
-    NewsletterField,
-    extra_plugins={
-        RichText: template_renderer("myapp/richtext.html"),
-    },
-)
-```
-
-`create_form_renderer(*field_models, extra_plugins=None)` returns a
-`RegionRenderer` where:
-
-- Every model in `field_models` is wired to the built-in `render_form_field`
-  handler, which renders each field using
-  `feincms3_formbuilder/form_field.html`.  Pass any number of plugin models
-  here — they all share that same wrapper template.
-- Every model in `extra_plugins` is registered with the renderer callable you
-  provide.  Use this for plugins that are not form fields (e.g. a `RichText`
-  block) **or** for field plugins that need different outer markup than
-  `form_field.html` — in that case write a custom renderer that calls
-  `form.get_form_fields(plugin)` itself.
-
-If you want every field to render through your own template, override
-`feincms3_formbuilder/form_field.html` in your project's templates directory
-rather than registering each model individually.
-
----
-
-## Admin
-
-Use `ConfiguredFormAdmin` together with the `simple_field_inlines()` helper and
-`FormStepInline`:
-
-```python
-# myapp/admin.py
-from django.contrib import admin
-from feincms3_formbuilder.admin import FormStepInline, simple_field_inlines
-from myapp.models import ConfiguredForm, FormStep, SimpleField
-
-
-@admin.register(ConfiguredForm)
-class ConfiguredFormAdmin(admin.ModelAdmin):
-    inlines = [
-        FormStepInline.for_model(FormStep),
-        *simple_field_inlines(SimpleField),
-    ]
-```
-
-`simple_field_inlines(model)` returns one `SimpleFieldInline` per field type,
-each pre-configured with a Material Icons button and a `deny_regions({"success"})`
-constraint so that field plugins cannot be placed in the success region.
-
-`FormStepInline` is an `OrderableAdmin` `TabularInline`.  Bind it to your
-concrete `FormStep` model with `FormStepInline.for_model(FormStep)`, or by
-subclassing and setting `model` explicitly.
-
-For the submission admin, subclass `BaseFormSubmissionAdmin`:
-
-```python
-from feincms3_formbuilder.admin import BaseFormSubmissionAdmin
-from myapp.models import FormSubmission
-
-
-@admin.register(FormSubmission)
-class FormSubmissionAdmin(BaseFormSubmissionAdmin):
-    pass  # add project-specific actions, list_filter etc. here
-```
-
-`BaseFormSubmissionAdmin` ships:
-
-- `list_display`, `list_filter`, `date_hierarchy`, and a two-section `fieldsets`
-  (main data + related object) covering every field on `AbstractFormSubmission`
-  plus the consumer's required `configured_form` FK.
-- `formatted_data_display` — calls `obj.get_formatted_data()`.
-- `related_object_link` — resolves the generic FK (`related_content_type` /
-  `related_object_id`) to an admin change-page link, or `-` when unset.
-- `has_add_permission()` returning `False` (submissions are user-generated).
-
----
-
-## Submission export (XLSX)
+### Submission export (XLSX)
 
 An optional Excel export of form submissions, exposed as an admin action.
 Install the extra, which pulls in
@@ -748,107 +858,3 @@ response = xlsx.to_response("form-submissions.xlsx")
 
 `build_submissions_xlsx` raises `ImproperlyConfigured` if the `xlsx` extra is
 not installed.
-
----
-
-## Views and URLs
-
-Write a thin wrapper that looks up the `ConfiguredForm` and dispatches to
-`simple_form_view` or `multistep_form_view`:
-
-```python
-# myapp/views.py
-from django.shortcuts import get_object_or_404
-from feincms3_formbuilder.views import multistep_form_view, simple_form_view
-from myapp.models import ConfiguredForm
-from myapp.renderer import renderer
-
-
-def form_view(request, slug):
-    configured_form = get_object_or_404(ConfiguredForm, slug=slug)
-    if configured_form.form_type == "multistep":
-        return multistep_form_view(request, configured_form, renderer=renderer)
-    return simple_form_view(request, configured_form, renderer=renderer)
-```
-
-```python
-# myapp/urls.py
-from django.urls import path
-from myapp import views
-
-app_name = "forms"
-
-urlpatterns = [
-    path("<slug:slug>/", views.form_view, name="form"),
-]
-```
-
-The dispatch lives in your project because your project owns the `FORMS`
-configuration that defines which form types exist. The `"multistep"` string
-above must match the `key=` you set on the corresponding `FormType` in
-`FORMS`.
-
-`multistep_form_view` walks all regions whose key starts with
-`STEP_REGION_PREFIX` (`"step_"`) — this matches `AbstractFormStep.region_key`.
-Pass `get_step_regions=` (a callable `(configured_form) -> list[Region]`) to
-override the selection, e.g. to mix step regions with project-specific
-content regions.
-
----
-
-## Templates
-
-The package ships three minimal templates under
-`feincms3_formbuilder/`:
-
-| Template | Used by |
-|---|---|
-| `form.html` | `simple_form_view` — wraps the form in a `<form>` tag with a Submit button |
-| `multistep_form.html` | `multistep_form_view` — adds step navigation, Back / Next / Submit buttons |
-| `form_field.html` | `render_form_field` — renders label, widget, help text, and errors for each field |
-
-Override any of them by creating a file at the same path inside your project's
-template directories.  For example, to style the step navigation, copy
-`feincms3_formbuilder/multistep_form.html` into your app's
-`templates/feincms3_formbuilder/` directory and modify it as needed.
-
----
-
-## Templatetags
-
-Load `feincms3_formbuilder_tags` to access the `make_submission_ref` filter.
-It signs a content-type / object-id pair so that a form submission can be
-linked back to a related object (e.g. an event registration linked to an event):
-
-```html
-{% load feincms3_formbuilder_tags %}
-
-<form method="post">
-  {% csrf_token %}
-  <input type="hidden" name="_ref" value="{{ event|make_submission_ref }}">
-  ...
-</form>
-```
-
-When `create_submission` processes the form data it pops `_ref`, verifies the
-signature, and stores the resolved generic FK on the submission.  You can then
-query submissions for a specific object:
-
-```python
-FormSubmission.objects.for_related_object(event)
-```
-
-The view layer also reads `?ref=` from the GET query string and pre-fills it
-into the form's `initial` data under the key `_ref`.  This lets you link to a
-form with `?ref={{ obj|make_submission_ref }}` and have the token survive
-through the form submission, provided your form class declares a hidden
-`_ref` field:
-
-```python
-from django import forms
-
-class BaseForm(forms.Form):
-    _ref = forms.CharField(required=False, widget=forms.HiddenInput)
-```
-
-If your form class has no `_ref` field the initial value is silently ignored.
