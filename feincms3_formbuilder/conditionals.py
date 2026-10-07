@@ -16,8 +16,8 @@ Public API:
   resolved.
 - ``condition_context`` — the template context a renderer needs to emit a
   condition as data attributes.
-- ``validate_conditionals`` — editor-time check for the form type's
-  ``validate`` function.
+- ``validate_conditionals`` — save-time configuration check for the form
+  type's ``validate`` function.
 """
 
 import dataclasses
@@ -136,7 +136,8 @@ def create_form_with_conditionals(
         name, values = condition
         if name in types and types[name] not in _CONTROLLING_TYPES:
             # Only decidable for a controlling field in this very form; every
-            # other misconfiguration is the editor-time check's job.
+            # other misconfiguration is the save-time configuration check's
+            # job.
             logger.warning(
                 "Field %r is controlled by %r, which is not a dropdown or a"
                 " radio field. It will never be shown.",

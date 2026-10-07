@@ -586,7 +586,8 @@ class ConditionalMultistepDefaultTest(TestCase):
 
 
 class ValidateConditionalsTest(TestCase):
-    """The editor-time check is the only thing that explains a dead condition.
+    """The save-time configuration check is the only thing that explains a
+    dead condition.
 
     At runtime a misconfigured condition just means the field is never shown.
     """
