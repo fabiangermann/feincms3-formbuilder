@@ -9,6 +9,9 @@ relationship to feincms3-forms mirrors the relationship of
 lower-level library defines the protocol; feincms3-formbuilder wires everything
 together so that projects only need to write the thin, project-specific layer.
 
+For how the package is organized internally, see
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
 ## Contents
 
 - [Core setup](#core-setup)
@@ -41,7 +44,7 @@ together so that projects only need to write the thin, project-specific layer.
     - [Without JavaScript](#without-javascript)
     - [Custom templates and renderers](#custom-templates-and-renderers)
     - [Custom scripts](#custom-scripts)
-    - [Editor-time check](#editor-time-check)
+    - [Save-time configuration check](#save-time-configuration-check)
     - [Notifications](#notifications-1)
   - [Submission export (XLSX)](#submission-export-xlsx)
 
@@ -375,8 +378,15 @@ class FormSubmissionAdmin(BaseFormSubmissionAdmin):
 
 ### Views and URLs
 
-Write a thin wrapper that looks up the `ConfiguredForm` and dispatches to
-`simple_form_view` or `multistep_form_view`:
+The package ships ready-made views for two common cases: `simple_form_view`
+for single-page forms and `multistep_form_view` for forms split into steps.
+They return HTML fragments (the `<form>` element, and the bare success region
+after a valid submission), so the page showing the form has to load them, for
+example with htmx. If they don't fit your needs, write your own views from the
+same parts; [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) describes them.
+
+To use the ready-made views, write a thin wrapper that looks up the
+`ConfiguredForm` and dispatches to one of them:
 
 ```python
 # myapp/views.py
@@ -405,10 +415,8 @@ urlpatterns = [
 ]
 ```
 
-The dispatch lives in your project because your project owns the `FORMS`
-configuration that defines which form types exist. The `"multistep"` string
-above must match the `key=` you set on the corresponding `FormType` in
-`FORMS`.
+The `"multistep"` string above must match the `key=` you set on the
+corresponding `FormType` in `FORMS`.
 
 `multistep_form_view` walks all regions whose key starts with
 `STEP_REGION_PREFIX` (`"step_"`) — this matches `AbstractFormStep.region_key`.
@@ -689,6 +697,13 @@ Include the script on every page showing the form:
 <script src="{% static 'feincms3_formbuilder/conditionals.js' %}" defer></script>
 ```
 
+The ready-made views support conditional fields without further setup. A view
+of your own must build its forms with `create_form_with_conditionals` from
+`feincms3_formbuilder.conditionals` instead of feincms3-forms' `create_form`;
+otherwise conditional fields are always shown and required.
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) describes what a custom multi-step
+view needs in addition.
+
 #### Configuring a condition
 
 Editors fill in two fields in the "Advanced" fieldset of the conditional
@@ -709,7 +724,7 @@ Limits:
 - A field has at most one condition.
 - In a multi-step form, the controlling field must be on the same step or an
   earlier one. A field controlled from a later step is never shown; the
-  [editor-time check](#editor-time-check) reports it.
+  [save-time configuration check](#save-time-configuration-check) reports it.
 - A step on which every field is inactive still appears in the progress
   indicator, with only a Next button. Put conditional fields on a step that
   has other fields too.
@@ -769,7 +784,7 @@ controlling field changes:
   carries `data-required-if-active`. A hidden input that is still `required`
   blocks the browser's submit.
 
-#### Editor-time check
+#### Save-time configuration check
 
 Projects whose editors configure conditions need this check. At runtime a
 misconfigured condition, such as a mistyped value, only means that the field
