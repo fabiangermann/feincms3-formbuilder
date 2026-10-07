@@ -1,5 +1,11 @@
 {% for field in fields.values %}
-<div>
+<div
+  {% if condition %}
+    data-show-when-field="{{ condition.field }}"
+    data-show-when-values='{{ condition.values }}'
+    {% if not condition.active %}hidden{% endif %}
+  {% endif %}
+>
   {{ field.label_tag }}
   {{ field }}
   {% if field.help_text %}<p>{{ field.help_text }}</p>{% endif %}

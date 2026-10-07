@@ -1,5 +1,34 @@
 # Changelog
 
+## Unreleased
+
+### Features
+
+- New `ConditionalFieldMixin` for the project's `SimpleField`, adding
+  `show_when_field` and `show_when_values`. A field carrying a condition is
+  only shown, only required and only stored when the controlling dropdown or
+  radio field's answer is one of the configured values. The server decides and
+  renders that decision, so the feature degrades to one extra round-trip
+  without JavaScript rather than failing. Requires a migration in the project;
+  see the README.
+- New `feincms3_formbuilder/static/feincms3_formbuilder/conditionals.js`,
+  included with one `<script>` tag, which keeps the rendered state in sync
+  while the page is open. Projects may use the documented data attribute
+  contract with their own script instead.
+- `feincms3_formbuilder/form_field.html` receives a new `condition` variable
+  and emits it as data attributes and `hidden`. Projects overriding the
+  template must update their copy (see README), or a conditional field whose
+  condition is not met is shown with disabled inputs.
+- Conditions work in multi-step forms, within a step and across steps.
+- New `validate_conditionals(configured_form, renderer)` for the form type's
+  `validate` function. It reports conditions naming a field that doesn't
+  exist, isn't a dropdown or radio, is itself conditional, or is asked on a
+  later step, as well as empty value lists and values the controlling field
+  doesn't offer, listing the valid ones. The admin shows these as errors after
+  saving without blocking the save. Projects whose editors configure
+  conditions must add the call to their `validate` function (see README);
+  otherwise a mistyped value silently hides the field.
+
 ## 0.4.0
 
 ### Backwards incompatible changes

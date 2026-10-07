@@ -417,6 +417,170 @@ def validate_configured_form(configured_form):
 
 ---
 
+## Conditional fields
+
+A field can be made conditional on a dropdown or radio field, the
+*controlling field*: it is shown, and required if configured as required,
+only when the controlling field is answered with one of the configured
+values. Otherwise its value is not stored.
+
+### Setup
+
+Add `ConditionalFieldMixin` to your concrete `SimpleField` and generate the
+migration:
+
+```python
+from feincms3_formbuilder.models import ConditionalFieldMixin
+
+
+class SimpleField(ConditionalFieldMixin, forms_models.SimpleFieldBase, ConfiguredFormPlugin):
+    class Meta:
+        verbose_name = "form field"
+        verbose_name_plural = "form fields"
+```
+
+```bash
+python manage.py makemigrations myapp
+```
+
+`simple_field_inlines()` adds `show_when_field` and `show_when_values` to the
+"Advanced" fieldset of every inline on its own. If you build your inlines
+another way, append both names to `advanced_fields` yourself.
+
+Include the script on every page showing the form:
+
+```html
+{% load static %}
+<script src="{% static 'feincms3_formbuilder/conditionals.js' %}" defer></script>
+```
+
+### Configuring a condition
+
+Editors fill in two fields in the "Advanced" fieldset of the conditional
+field:
+
+- `show_when_field` is the *name* of the controlling field.
+- `show_when_values` takes one choice key of the controlling field per line.
+  The key is the value the browser submits:
+  - for a `choices` line without `|`, the slugified label (`Phone` → `phone`)
+  - for a `key | Label` line, the key
+
+Limits:
+
+- Only dropdown and radio fields can control other fields. A condition naming
+  any other field type in the same form never matches, and the conditional
+  field is never shown.
+- A controlling field must not itself be conditional.
+- A field has at most one condition.
+- In a multi-step form, the controlling field must be on the same step or an
+  earlier one. A field controlled from a later step is never shown; the
+  [editor-time check](#editor-time-check) reports it.
+- A step on which every field is inactive still appears in the progress
+  indicator, with only a Next button. Put conditional fields on a step that
+  has other fields too.
+
+### Without JavaScript
+
+The conditional field stays hidden until the user submits the form. The
+server then sees the answer to the controlling field. For a required
+conditional field, it returns the form with the field visible and a
+"required" error on it, so the missing answer is asked for rather than
+silently dropped. An optional conditional field is accepted empty, as if the
+user had left it blank.
+
+### Custom templates and renderers
+
+`render_form_field` passes the condition to `form_field.html` as the
+`condition` template variable. It is empty for an unconditional field and
+otherwise holds:
+
+- `field`: the name of the controlling field.
+- `values`: the satisfying values, already encoded as a JSON string for the
+  `data-show-when-values` attribute.
+- `active`: whether the server considers the condition met.
+
+If your project overrides `feincms3_formbuilder/form_field.html`, it must emit
+both data attributes and `hidden` from `condition` as the shipped template
+does (see the markup below). Otherwise a conditional field whose condition is
+not met is shown with disabled inputs.
+
+A custom renderer gets the same `condition` from
+`condition_context(form, plugin)`, importable from
+`feincms3_formbuilder.conditionals`.
+
+### Custom scripts
+
+The server renders each condition as data attributes on the field's wrapper
+element, with `hidden` set while the condition is not met:
+
+```html
+<div data-show-when-field="contact_pref" data-show-when-values='["phone","sms"]' hidden>
+  …field…
+</div>
+```
+
+The inputs of a conditional field carry `data-required-if-active` where
+Django would render `required`: it marks the inputs that are required while
+the field is active. While the condition is not met, the inputs also carry
+`disabled` and no `required`.
+
+To replace `conditionals.js`, your script must do the following whenever the
+controlling field changes:
+
+- Toggle `hidden` on the wrapper.
+- Toggle `disabled` on the inputs inside it, so the browser does not send
+  values for fields the user cannot see.
+- Set `required` on an input exactly when the field is active and the input
+  carries `data-required-if-active`. A hidden input that is still `required`
+  blocks the browser's submit.
+
+### Editor-time check
+
+Projects whose editors configure conditions need this check. At runtime a
+misconfigured condition, such as a mistyped value, only means that the field
+is silently never shown, with nothing to tell the editor why. Add
+`validate_conditionals` to the list your form type's `validate` function
+returns (see [Validation](#validation)) to report these problems:
+
+```python
+# myapp/validation.py
+from feincms3_formbuilder.conditionals import validate_conditionals
+from feincms3_formbuilder.models import validate_with_renderer
+from feincms3_formbuilder.notifications import validate_notification_recipients
+from myapp.renderer import renderer
+
+
+def validate_configured_form(configured_form):
+    return [
+        *validate_with_renderer(configured_form, renderer),
+        *validate_notification_recipients(
+            configured_form, renderer, configured_form.notifications.all(),
+        ),
+        *validate_conditionals(configured_form, renderer),
+    ]
+```
+
+It reports a condition that:
+
+- names a controlling field that does not exist,
+- names the field itself,
+- names a controlling field that is not a dropdown or radio field,
+- names a controlling field that is itself conditional,
+- names a controlling field on a later step,
+- has a controlling field but no values,
+- lists a value the controlling field does not offer. The message lists the
+  values the controlling field does offer.
+
+The admin shows these as errors after saving. Saving is not blocked, so the
+editor has to fix the condition and save again.
+
+### Notifications
+
+A recipient written as `{{ form_data.<name> }}` that names a field which is
+not active is skipped, exactly like an optional email field left empty.
+
+---
+
 ## Renderer
 
 Call `create_form_renderer()` with your field-producing plugin models as

@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
 "Report-Msgid-Bugs-To: \n"
-"POT-Creation-Date: 2026-10-01 14:18+0000\n"
+"POT-Creation-Date: 2026-10-07 03:36-0500\n"
 "PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
 "Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
 "Language-Team: LANGUAGE <LL@li.org>\n"
@@ -18,19 +18,19 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
-#: admin.py:19
+#: admin.py:20
 msgid "Export selected submissions to Excel"
 msgstr "Ausgewählte Einreichungen nach Excel exportieren"
 
-#: admin.py:114
+#: admin.py:129
 msgid "Related object"
 msgstr "Zugehöriges Objekt"
 
-#: admin.py:126
+#: admin.py:141
 msgid "formatted data"
 msgstr "formatierte Daten"
 
-#: admin.py:130
+#: admin.py:145
 msgid "related object"
 msgstr "zugehöriges Objekt"
 
@@ -38,92 +38,159 @@ msgstr "zugehöriges Objekt"
 msgid "feincms3 formbuilder"
 msgstr ""
 
+#: conditionals.py:228
+#, python-format
+msgid "Field '%(field)s' is configured to depend on itself."
+msgstr "Das Feld '%(field)s' ist so konfiguriert, dass es von sich selbst abhängt."
+
+#: conditionals.py:238
+#, python-format
+msgid "Field '%(field)s' depends on '%(control)s', which doesn't exist."
+msgstr "Das Feld '%(field)s' hängt von '%(control)s' ab, das nicht existiert."
+
+#: conditionals.py:248
+#, python-format
+msgid ""
+"Field '%(field)s' depends on '%(control)s', which is not a dropdown or a "
+"radio field."
+msgstr "Das Feld '%(field)s' hängt von '%(control)s' ab, das kein Dropdown- oder Radio-Feld ist."
+
+#: conditionals.py:260
+#, python-format
+msgid ""
+"Field '%(field)s' depends on '%(control)s', which is itself conditional. "
+"Chained conditions are not supported."
+msgstr "Das Feld '%(field)s' hängt von '%(control)s' ab, das selbst eine Bedingung hat. Verkettete Bedingungen werden nicht unterstützt."
+
+#: conditionals.py:271
+#, python-format
+msgid ""
+"Field '%(field)s' depends on '%(control)s', which is asked on a later step. "
+"It would never be shown."
+msgstr "Das Feld '%(field)s' hängt von '%(control)s' ab, das erst in einem späteren Schritt abgefragt wird. Es würde nie angezeigt."
+
+#: conditionals.py:281
+#, python-format
+msgid "Field '%(field)s' has a controlling field but no values."
+msgstr "Das Feld '%(field)s' hat ein steuerndes Feld, aber keine Werte."
+
+#: conditionals.py:294
+#, python-format
+msgid ""
+"Field '%(field)s' is shown for %(values)s, which '%(control)s' doesn't "
+"offer. Valid values: %(keys)s."
+msgstr "Das Feld '%(field)s' wird bei %(values)s angezeigt, was '%(control)s' nicht anbietet. Gültige Werte: %(keys)s."
+
 #: models.py:35
 #, python-format
 msgid "%(value)s is not a valid region key identifier."
 msgstr "%(value)s ist kein gültiger identifier"
 
-#: models.py:51
+#: models.py:58
+msgid "show when field"
+msgstr "anzeigen, wenn Feld"
+
+#: models.py:62
+msgid ""
+"Name of the dropdown or radio field controlling this field. Leave empty to "
+"always show this field."
+msgstr ""
+"Name des Dropdown- oder Radio-Felds, das dieses Feld steuert. Leer lassen, "
+"um dieses Feld immer anzuzeigen."
+
+#: models.py:67
+msgid "show when values"
+msgstr "anzeigen bei Werten"
+
+#: models.py:70
+msgid ""
+"One choice value (key) of the controlling field per line. This field is "
+"shown when the controlling field's answer is one of them."
+msgstr ""
+"Ein Auswahlwert (Schlüssel) des steuernden Felds pro Zeile. Dieses Feld wird "
+"angezeigt, wenn die Antwort im steuernden Feld einem davon entspricht."
+
+#: models.py:88
 msgid "title"
 msgstr "titel"
 
-#: models.py:52
+#: models.py:89
 msgid "identifier"
 msgstr ""
 
-#: models.py:53
+#: models.py:90
 msgid "back label"
 msgstr "Beschriftung für Zurück-Button"
 
-#: models.py:54
+#: models.py:91
 msgid "next label"
 msgstr "Beschriftung für Weiter-Button"
 
-#: models.py:55 models.py:98
+#: models.py:92 models.py:135
 msgid "created at"
 msgstr "erstellt am"
 
-#: models.py:56 models.py:99
+#: models.py:93 models.py:136
 msgid "updated at"
 msgstr "aktualisiert am"
 
-#: models.py:60
+#: models.py:97
 msgid "form step"
 msgstr "Formularschritt"
 
-#: models.py:61
+#: models.py:98
 msgid "form steps"
 msgstr "Formularschritte"
 
-#: models.py:104
+#: models.py:141
 msgid "simple form"
 msgstr "Einfaches Formular"
 
-#: models.py:106
+#: models.py:143
 msgid "Form fields"
 msgstr "Formularfelder"
 
-#: models.py:107 models.py:125
+#: models.py:144 models.py:162
 msgid "Success message"
 msgstr "Erfolgsmeldung"
 
-#: models.py:115
+#: models.py:152
 msgid "multi-step form"
 msgstr "Mehrstufiges Formular"
 
-#: models.py:135
+#: models.py:172
 msgid "configured form"
 msgstr "Konfiguriertes Formular"
 
-#: models.py:136
+#: models.py:173
 msgid "configured forms"
 msgstr "Konfigurierte Formulare"
 
-#: models.py:153
+#: models.py:190
 msgid "submitted at"
 msgstr "eingereicht am"
 
-#: models.py:154
+#: models.py:191
 msgid "data"
 msgstr "daten"
 
-#: models.py:155
+#: models.py:192
 msgid "IP address"
 msgstr ""
 
-#: models.py:156
+#: models.py:193
 msgid "user agent"
 msgstr ""
 
-#: models.py:163
+#: models.py:200
 msgid "related content type"
 msgstr "Inhaltstyp des zugehörigen Objektes"
 
-#: models.py:172
+#: models.py:209
 msgid "form submission"
 msgstr "Formulareinreichung"
 
-#: models.py:173
+#: models.py:210
 msgid "form submissions"
 msgstr "Formulareinreichungen"
 
@@ -135,27 +202,27 @@ msgstr "Empfänger müssen angegeben werden."
 msgid "Empty email address in recipients list."
 msgstr "Leere E-Mail-Adresse in Empfängerliste."
 
-#: notifications.py:54
+#: notifications.py:56
 msgid ""
 "Recipients only support email addresses and {{ form_data.<field_name> }}, "
 "without filters or tags."
 msgstr ""
-"Empfänger unterstützen nur E-Mail-Adressen und "
-"{{ form_data.<field_name> }}, ohne Filter oder Tags."
+"Empfänger unterstützen nur E-Mail-Adressen und {{ form_data.<field_name> }}, "
+"ohne Filter oder Tags."
 
-#: notifications.py:64
+#: notifications.py:66
 msgid "recipients"
 msgstr "empfänger"
 
-#: notifications.py:66
+#: notifications.py:68
 msgid "subject"
 msgstr "betreff"
 
-#: notifications.py:67
+#: notifications.py:69
 msgid "body"
 msgstr ""
 
-#: notifications.py:68
+#: notifications.py:70
 msgid ""
 "HTML. Supports {{ form_data.<field_name> }} and any keys the project places "
 "in the notification context."
@@ -163,15 +230,15 @@ msgstr ""
 "HTML. Unterstützt {{ form_data.<field_name> }} und sämtliche Platzhalter die "
 "vom Projekt im Kontext verfügbar gemacht werden."
 
-#: notifications.py:74
+#: notifications.py:76
 msgid "form notification"
 msgstr "Formularbenachrichtigung"
 
-#: notifications.py:75
+#: notifications.py:77
 msgid "form notifications"
 msgstr "Formularbenachrichtigungen"
 
-#: notifications.py:207
+#: notifications.py:210
 #, python-brace-format
 msgid ""
 "Notification \"{notification}\": recipients refer to field '{name}', which "
@@ -180,7 +247,7 @@ msgstr ""
 "Benachrichtigung \"{notification}\": Die Empfänger verweisen auf das Feld "
 "'{name}', das nicht existiert."
 
-#: notifications.py:212
+#: notifications.py:215
 #, python-brace-format
 msgid ""
 "Notification \"{notification}\": recipients refer to field '{name}', which "

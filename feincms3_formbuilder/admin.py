@@ -6,6 +6,7 @@ from django.utils.html import format_html
 from django.utils.translation import gettext_lazy as _
 from feincms3_forms import admin as forms_admin
 
+from feincms3_formbuilder.models import ConditionalFieldMixin
 from feincms3_formbuilder.reporting import build_submissions_xlsx
 
 
@@ -42,7 +43,9 @@ class FormStepInline(OrderableAdmin, admin.TabularInline):
 def simple_field_inlines(model):
     """
     Return a list of 11 SimpleFieldInline.create() calls for all standard
-    field types, with material icons and deny_regions({"success"}).
+    field types, with material icons and deny_regions({"success"}). The
+    condition fields are appended to the advanced fields when ``model`` uses
+    ``ConditionalFieldMixin``.
     """
     type_configs = [
         (model.proxy(model.Type.TEXT), '<span class="material-icons">short_text</span>'),
@@ -58,7 +61,7 @@ def simple_field_inlines(model):
         (model.proxy(model.Type.CHECKBOX_SELECT_MULTIPLE), '<span class="material-icons">library_add_check</span>'),
     ]
 
-    return [
+    inlines = [
         forms_admin.SimpleFieldInline.create(
             model=proxy_model,
             button=icon,
@@ -66,6 +69,18 @@ def simple_field_inlines(model):
         )
         for proxy_model, icon in type_configs
     ]
+
+    if issubclass(model, ConditionalFieldMixin):
+        for inline in inlines:
+            # Assigning on the generated subclass; the base class's list must
+            # stay untouched or every later call would grow it again.
+            inline.advanced_fields = [
+                *inline.advanced_fields,
+                "show_when_field",
+                "show_when_values",
+            ]
+
+    return inlines
 
 
 class BaseFormSubmissionAdmin(admin.ModelAdmin):

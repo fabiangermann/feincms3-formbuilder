@@ -6,8 +6,8 @@ from django.core.serializers.json import DjangoJSONEncoder
 from django.shortcuts import render
 from django.template import Context
 from django.utils.safestring import mark_safe
-from feincms3_forms.renderer import create_form
 
+from feincms3_formbuilder.conditionals import create_form_with_conditionals
 from feincms3_formbuilder.models import STEP_REGION_PREFIX
 
 
@@ -36,7 +36,7 @@ def simple_form_view(request, configured_form, *, renderer, form_class=None):
     contents = contents_for_item(configured_form, plugins=renderer.plugins())
 
     if request.method == "POST":
-        form = create_form(
+        form = create_form_with_conditionals(
             contents["form"],
             form_class=form_class,
             form_kwargs={"data": request.POST, "files": request.FILES},
@@ -46,7 +46,7 @@ def simple_form_view(request, configured_form, *, renderer, form_class=None):
                 request, form, configured_form=configured_form
             )
     else:
-        form = create_form(
+        form = create_form_with_conditionals(
             contents["form"],
             form_class=form_class,
             form_kwargs={"initial": _ref_initial(request)},
@@ -98,7 +98,7 @@ def compute_step_statuses(
         if not accumulated_data:
             status = "empty"
         else:
-            form = create_form(
+            form = create_form_with_conditionals(
                 plugins,
                 form_class=form_class,
                 form_kwargs={"data": accumulated_data},
@@ -143,7 +143,7 @@ def _render_step(
     current_region = step_regions[step_index]
     total_steps = len(step_regions)
 
-    form = create_form(
+    form = create_form_with_conditionals(
         contents[current_region.key],
         form_class=form_class,
         form_kwargs={"initial": {**accumulated_data, **_ref_initial(request)}},
@@ -210,10 +210,17 @@ def multistep_form_view(
     current_region = step_regions[current_step]
 
     if request.method == "POST":
-        form = create_form(
+        # The POST carries only this step's fields, but a controlling field may
+        # live on an earlier one, so the session has to be merged in. Use
+        # ``.dict()``: a QueryDict stores lists internally, so ``|`` would
+        # produce ``{"name": ["Alice"]}``.
+        available_data = accumulated_data | request.POST.dict()
+
+        form = create_form_with_conditionals(
             contents[current_region.key],
             form_class=form_class,
             form_kwargs={"data": request.POST, "files": request.FILES},
+            available_data=available_data,
         )
 
         action = request.POST.get("_action", "next")
@@ -239,17 +246,27 @@ def multistep_form_view(
                 step_data["data"] = accumulated_data
 
                 all_valid = True
+                inactive = set()
                 for region in step_regions:
-                    step_form = create_form(
+                    step_form = create_form_with_conditionals(
                         contents[region.key],
                         form_class=validation_form_class,
                         form_kwargs={"data": accumulated_data},
                     )
+                    inactive |= step_form._f3fb_conditionals.inactive
                     if not step_form.is_valid():
                         all_valid = False
                         break
 
                 if all_valid:
+                    # Values of fields that went inactive are kept in the
+                    # session so switching the answer back restores them; this
+                    # is the one place they must not survive.
+                    accumulated_data = {
+                        key: value
+                        for key, value in accumulated_data.items()
+                        if key not in inactive
+                    }
                     # Clear session before processing
                     session_key = f"multistep_form_{configured_form.pk}"
                     request.session.pop(session_key, None)

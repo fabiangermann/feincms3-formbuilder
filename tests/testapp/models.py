@@ -6,6 +6,7 @@ from feincms3_formbuilder.models import (
     AbstractConfiguredForm,
     AbstractFormStep,
     AbstractFormSubmission,
+    ConditionalFieldMixin,
 )
 from feincms3_formbuilder.notifications import AbstractFormNotification
 
@@ -66,7 +67,9 @@ class FormStep(AbstractFormStep):
 ConfiguredFormPlugin = create_plugin_base(ConfiguredForm)
 
 
-class SimpleField(forms_models.SimpleFieldBase, ConfiguredFormPlugin):
+class SimpleField(
+    ConditionalFieldMixin, forms_models.SimpleFieldBase, ConfiguredFormPlugin
+):
     class Meta:
         verbose_name = "form field"
         verbose_name_plural = "form fields"

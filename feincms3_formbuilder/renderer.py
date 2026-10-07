@@ -1,8 +1,15 @@
 from feincms3.renderer import RegionRenderer, render_in_context
 
+from feincms3_formbuilder.conditionals import condition_context
+
 
 def render_form_field(plugin, context):
-    """Render a form field plugin using the form object from context."""
+    """Render a form field plugin using the form object from context.
+
+    ``condition`` carries the plugin's show-when rule so the template can emit
+    it for the browser and hide the field when the server considers it
+    inactive.
+    """
     form = context.get("form")
     if not form:
         return ""
@@ -10,7 +17,11 @@ def render_form_field(plugin, context):
     return render_in_context(
         context,
         "feincms3_formbuilder/form_field.html",
-        {"plugin": plugin, "fields": fields},
+        {
+            "plugin": plugin,
+            "fields": fields,
+            "condition": condition_context(form, plugin),
+        },
     )
 
 

@@ -47,6 +47,43 @@ class StepSlugField(models.CharField):
         return value
 
 
+class ConditionalFieldMixin(models.Model):
+    """Adds a show-when condition to a form field plugin.
+
+    Mix into the project's concrete ``SimpleField`` and generate the
+    migration. Plugins without the mixin are always unconditional.
+    """
+
+    show_when_field = models.CharField(
+        _("show when field"),
+        max_length=50,
+        blank=True,
+        help_text=_(
+            "Name of the dropdown or radio field controlling this field."
+            " Leave empty to always show this field."
+        ),
+    )
+    show_when_values = models.TextField(
+        _("show when values"),
+        blank=True,
+        help_text=_(
+            "One choice value (key) of the controlling field per line. This"
+            " field is shown when the controlling field's answer is one of"
+            " them."
+        ),
+    )
+
+    class Meta:
+        abstract = True
+
+    @property
+    def show_when_values_list(self):
+        """The condition's choice keys, stripped, in configured order."""
+        return [
+            line.strip() for line in self.show_when_values.splitlines() if line.strip()
+        ]
+
+
 class AbstractFormStep(OrderableModel):
     title = models.CharField(_("title"), max_length=200)
     identifier = StepSlugField(_("identifier"), max_length=100, blank=True)

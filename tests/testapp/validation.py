@@ -1,3 +1,4 @@
+from feincms3_formbuilder.conditionals import validate_conditionals
 from feincms3_formbuilder.models import validate_with_renderer
 from feincms3_formbuilder.notifications import validate_notification_recipients
 from testapp.renderer import renderer
@@ -9,4 +10,5 @@ def validate_configured_form(configured_form):
         *validate_notification_recipients(
             configured_form, renderer, configured_form.notifications.all(),
         ),
+        *validate_conditionals(configured_form, renderer),
     ]
