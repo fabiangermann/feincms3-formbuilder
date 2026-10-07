@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.0
 
 ### Features
 
@@ -28,6 +28,13 @@
   saving without blocking the save. Projects whose editors configure
   conditions must add the call to their `validate` function (see README);
   otherwise a mistyped value silently hides the field.
+
+### Documentation
+
+- The README now has a table of contents and is split into core setup and
+  optional features. It also states that the shipped views return HTML
+  fragments and what a project's own views need for conditional fields.
+- New `docs/ARCHITECTURE.md` describing how the package is organized.
 
 ## 0.4.0
 
